@@ -1,0 +1,10 @@
+numpy>=1.26
+networkx>=3.2
+matplotlib>=3.8
+pandas>=2.1
+scipy>=1.11
+pytest>=8.0
+# Phase 3+ (optional, install when needed)
+# osmnx>=1.9
+# gymnasium>=0.29
+# torch>=2.2
