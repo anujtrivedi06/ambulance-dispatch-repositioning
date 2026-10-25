@@ -1,3 +1,4 @@
+from .adp import ADPPolicy
 from .base import Policy
 from .coverage import DMEXCLP
 from .mcts import MCTSPolicy
@@ -11,4 +12,5 @@ __all__ = [
     "DMEXCLP",
     "RolloutPolicy",
     "MCTSPolicy",
+    "ADPPolicy",
 ]
