@@ -12,6 +12,7 @@ base policy it is rolling out, with wall-clock cost reported alongside.
 from __future__ import annotations
 
 import argparse
+import csv
 import sys
 import time
 from pathlib import Path
@@ -49,6 +50,31 @@ def build(method: str, budget: int, args) -> object:
     raise ValueError(f"unknown method {method!r}")
 
 
+def _write_csv(path: Path, per_rep, cost, args) -> None:
+    """One row per policy, so the anytime curve can be plotted without re-running."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(
+            ["policy", "method", "budget", "forks_per_rep", "seconds"]
+            + METRICS
+            + [f"{m}_sd" for m in METRICS]
+        )
+        for name, reps in per_rep.items():
+            agg = aggregate(reps)
+            elapsed, sims = cost[name]
+            method = name.split("(")[0].strip()
+            budget = ""
+            for part in name.replace(")", "").split(","):
+                if part.startswith(("m=", "n=")):
+                    budget = part[2:]
+            writer.writerow(
+                [name, method, budget, f"{sims / args.reps:.0f}", f"{elapsed:.2f}"]
+                + [f"{agg[m]:.5f}" for m in METRICS]
+                + [f"{column(reps, m).std(ddof=1):.5f}" for m in METRICS]
+            )
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--days", type=int, default=2)
@@ -64,6 +90,7 @@ def main() -> None:
     p.add_argument("--candidates", type=int, default=2, help="stations shortlisted")
     p.add_argument("--depth", type=int, default=2, help="MCTS tree depth")
     p.add_argument("--value-mode", default="coverage", choices=["coverage", "response"])
+    p.add_argument("--out", type=Path, default=None, help="write per-policy results CSV")
     args = p.parse_args()
 
     city = grid_city(
