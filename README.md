@@ -32,19 +32,38 @@ decision process** over a discrete-event simulation:
 ```bash
 pip install -r requirements.txt
 python scripts/run_baseline.py --days 7 --reps 10
+python scripts/run_phase2.py --days 7 --reps 30
 python -m pytest tests -q
 ```
 
 ## Current results
 
-8x8 grid city, 4 bases, 6 ambulances, 4 calls/hour, 3 simulated days x 5 paired replications:
+8x8 grid city, 4 stations, 6 ambulances, 4 calls/hour, 7 simulated days x 30 paired
+replications (~648 calls per replication):
 
 | policy | coverage (≤8 min) | mean response | p90 response | worst-zone coverage |
 |---|---|---|---|---|
-| random (floor) | 0.370 | 9.92 min | 16.08 min | 0.300 |
-| nearest-idle, static home base (B1) | 0.750 | 5.85 min | 11.62 min | 0.694 |
+| B0 random (floor) | 0.357 | 10.09 min | 16.21 min | 0.282 |
+| B1 nearest-idle, hand-placed stations | 0.765 | 5.82 min | 11.72 min | 0.727 |
+| B2a nearest-idle, p-median stations | 0.858 | **4.67 min** | 9.73 min | 0.792 |
+| B2b nearest-idle, MEXCLP stations | 0.860 | 5.38 min | 9.14 min | 0.798 |
+| B3 DMEXCLP on MEXCLP stations | **0.872** | 5.26 min | **8.81 min** | **0.822** |
+| B3h DMEXCLP on hand-placed stations | 0.836 | 5.07 min | 10.31 min | 0.711 |
 
-B1 is the bar to beat; coverage-aware repositioning comes next (Phase 2).
+B3 beats B1 on all four metrics, every one significant at 5% on both a paired t-test and
+Wilcoxon signed-rank (n = 30). The interesting part is the decomposition:
+
+- **Station placement does most of the work.** B1→B2b is +0.096 coverage; adding dynamic
+  repositioning on top (B2b→B3) adds only +0.012. Repositioning on *badly placed* stations
+  (B1→B3h) is worth +0.071 on its own — so the two are largely substitutes, and a large
+  reported DMEXCLP gain is implicitly a report of badly-placed stations.
+- **DMEXCLP trades equity for the average.** B3h lifts city-wide coverage by +0.071 while
+  *lowering* worst-zone coverage by 0.016 (p ≈ 0.08 — a hint, not yet a result). Its
+  objective has no term for the worst-off zone. Phase 5 picks this up.
+- **p-median and MEXCLP optimise different things**, exactly as theory says: p-median wins
+  the mean (4.67 min), MEXCLP wins the tail and coverage (p90 9.14 min).
+
+Reproduce with `python scripts/run_phase2.py --reps 30 --days 7`.
 
 ## Layout
 
@@ -52,8 +71,12 @@ B1 is the bar to beat; coverage-aware repositioning comes next (Phase 2).
 src/ambulance/
   city.py            road graph, travel times, demand model, call generation
   sim.py             discrete-event simulator and ambulance state machine
+  location.py        static station placement: p-median and MEXCLP
   metrics.py         response-time, coverage and equity metrics
+  experiment.py      paired, seeded replications
+  stats.py           paired t + Wilcoxon significance testing
   policies/          one Policy interface, every method behind it
-scripts/run_baseline.py
+scripts/run_baseline.py   Phase 1 reference policies
+scripts/run_phase2.py     station optimisation + dynamic repositioning
 tests/
 ```
