@@ -49,7 +49,12 @@ class DMEXCLP(Policy):
             return None
         return min(available, key=lambda a: sim.travel_time_to(a, call.node)).id
 
-    def reposition(self, sim, amb_id: int) -> int:
+    def gains(self, sim, amb_id: int) -> dict[int, float]:
+        """Marginal expected covered demand from sending unit `amb_id` to each station.
+
+        Exposed separately so a lookahead policy can use this ranking to shortlist
+        candidate stations instead of simulating futures for every one of them.
+        """
         city = sim.city
         cov = self._coverage(city)
         q = self.busy_prob
@@ -64,12 +69,16 @@ class DMEXCLP(Policy):
         # Marginal expected demand newly covered by putting one more unit at a site:
         # for each node it reaches, the chance every unit already covering it is busy.
         gain_scale = city.demand_weights * (q**counts) * (1.0 - q)
-
-        me = sim.ambulances[amb_id]
         bases = self.candidates if self.candidates is not None else city.bases
+        return {b: float(gain_scale @ cov[city.index_of(b)]) for b in bases}
+
+    def reposition(self, sim, amb_id: int) -> int:
+        gains = self.gains(sim, amb_id)
+        me = sim.ambulances[amb_id]
+        bases = list(gains)
         best_base, best_gain, best_tt = bases[0], -np.inf, np.inf
         for base in bases:
-            gain = float(gain_scale @ cov[city.index_of(base)])
+            gain = gains[base]
             tt = sim.travel_time_to(me, base)
             # Prefer the closer station when coverage gain ties, to avoid pointless
             # driving (and the fuel/crew cost a real service would object to).
