@@ -42,22 +42,41 @@ class City:
     base_call_rate: float = 2.0  # mean calls/hour, before the hourly profile
     _tt: np.ndarray = field(init=False, repr=False)
     _index: dict[int, int] = field(init=False, repr=False)
+    _next_hop: np.ndarray = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         nodes = sorted(self.graph.nodes)
         self._index = {n: i for i, n in enumerate(nodes)}
         n = len(nodes)
         self._tt = np.full((n, n), np.inf)
-        paths = dict(nx.all_pairs_dijkstra_path_length(self.graph, weight="time"))
-        for u, dists in paths.items():
+        # Next-hop table alongside the distances: routing a unit is then a walk over
+        # precomputed hops instead of a Dijkstra per move, which dominated the profile
+        # once lookahead policies started simulating thousands of futures per decision.
+        self._next_hop = np.full((n, n), -1, dtype=np.int32)
+        for u, (dists, paths) in nx.all_pairs_dijkstra(self.graph, weight="time"):
+            iu = self._index[u]
             for v, d in dists.items():
-                self._tt[self._index[u], self._index[v]] = d
+                self._tt[iu, self._index[v]] = d
+            for v, path in paths.items():
+                if len(path) > 1:
+                    self._next_hop[iu, self._index[v]] = path[1]
         if not np.isfinite(self._tt).all():
             raise ValueError("city graph is not connected")
 
     @property
     def nodes(self) -> list[int]:
         return sorted(self.graph.nodes)
+
+    def path(self, u: int, v: int) -> list[int]:
+        """Shortest path from u to v inclusive, walked from the next-hop table."""
+        if u == v:
+            return [u]
+        out = [u]
+        cur = u
+        while cur != v:
+            cur = int(self._next_hop[self._index[cur], self._index[v]])
+            out.append(cur)
+        return out
 
     def index_of(self, node: int) -> int:
         """Row/column of `node` in the travel-time matrix."""
@@ -149,21 +168,30 @@ def grid_city(
 
 
 def generate_calls(
-    city: City, horizon_minutes: float, rng: np.random.Generator
+    city: City,
+    horizon_minutes: float,
+    rng: np.random.Generator,
+    start_time: float = 0.0,
+    first_id: int = 0,
 ) -> list[Call]:
     """Sample a non-homogeneous Poisson call stream by thinning.
 
     Generating the whole stream up front (rather than inside the simulator) means every
     policy can be evaluated on an identical set of calls -- paired comparison, far lower
     variance than independent runs.
+
+    `start_time` and `first_id` let a lookahead policy sample a *hypothetical* future
+    window starting from the current decision epoch, keeping the time-of-day arrival
+    profile aligned with the real clock.
     """
     lam_max = city.base_call_rate * float(HOURLY_PROFILE.max()) / 60.0  # per minute
     calls: list[Call] = []
-    t = 0.0
-    next_id = 0
+    t = start_time
+    end = start_time + horizon_minutes
+    next_id = first_id
     while True:
         t += rng.exponential(1.0 / lam_max)
-        if t >= horizon_minutes:
+        if t >= end:
             break
         if rng.random() <= city.arrival_rate(t) / 60.0 / lam_max:
             priority = 1 if rng.random() < 0.6 else 2

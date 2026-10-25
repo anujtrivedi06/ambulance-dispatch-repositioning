@@ -6,12 +6,15 @@ import heapq
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-import networkx as nx
 import numpy as np
 
-from .city import Call, City
+from .city import Call, City, generate_calls
 
 HOSPITAL_HANDOVER_MINUTES = 15.0
+
+# Hypothetical calls sampled inside a fork get ids from here up, so they can never
+# collide with the real call stream's ids.
+_FORK_ID_BASE = 10_000_000
 
 
 class Status(Enum):
@@ -99,6 +102,16 @@ class CallRecord:
         return self.assigned_at - self.call.arrival_time
 
 
+def _copy_record(rec: CallRecord) -> CallRecord:
+    """Copy a call record. `Call` itself is frozen, so it can be shared."""
+    return CallRecord(
+        call=rec.call,
+        assigned_at=rec.assigned_at,
+        amb_id=rec.amb_id,
+        reached_at=rec.reached_at,
+    )
+
+
 class Simulator:
     """Event-driven simulation of one scenario under one policy.
 
@@ -158,7 +171,7 @@ class Simulator:
     def _drive(self, amb: Ambulance, dest: int) -> float:
         """Send `amb` toward `dest`; fill in its route and return the arrival time."""
         start, delay = amb.position(self.time)
-        path = nx.shortest_path(self.city.graph, start, dest, weight="time")
+        path = self.city.path(start, dest)
         noise = max(0.6, 1.0 + self.travel_noise * self.rng.normal())
         t = self.time + delay
         amb.route, amb.route_times = [], []
@@ -212,14 +225,80 @@ class Simulator:
         for call in self.calls:
             self.records[call.id] = CallRecord(call)
             self._push(call.arrival_time, EventType.CALL_ARRIVAL, call=call)
+        self.resume(policy, until=horizon)
+        return [self.records[c.id] for c in self.calls]
 
+    def resume(self, policy, until: float | None = None) -> None:
+        """Process events from the current state up to `until`.
+
+        Separated from `run` so a forked simulator, whose events are already in the heap,
+        can be advanced without re-seeding the call stream.
+        """
         while self._events:
-            ev = heapq.heappop(self._events)
-            if horizon is not None and ev.time > horizon:
+            if until is not None and self._events[0].time > until:
                 break
+            ev = heapq.heappop(self._events)
             self.time = ev.time
             self._handle(ev, policy)
-        return [self.records[c.id] for c in self.calls]
+
+    # ------------------------------------------------------------------ lookahead
+
+    def fork(self, rng: np.random.Generator, horizon: float) -> "Simulator":
+        """A copy of the current state with a freshly *sampled* future.
+
+        Lookahead policies need to simulate forward from the present decision epoch. The
+        copy therefore keeps everything already committed -- unit positions, missions in
+        flight, calls still queued -- but drops every pending call arrival and samples a
+        new stream over the next `horizon` minutes from the demand model.
+
+        Dropping the real arrivals is the whole point. Keeping them would let the policy
+        see the actual future and score far better than it could in deployment, which is
+        the standard way a lookahead experiment becomes meaningless.
+        """
+        clone = object.__new__(Simulator)
+        clone.city = self.city  # shared: read-only during a run
+        clone.calls = []
+        clone.rng = rng
+        clone.travel_noise = self.travel_noise
+        clone.time = self.time
+        clone._seq = self._seq
+        clone.ambulances = [
+            Ambulance(
+                id=a.id,
+                home_base=a.home_base,
+                node=a.node,
+                status=a.status,
+                route=list(a.route),
+                route_times=list(a.route_times),
+                call=a.call,
+                trip=a.trip,
+            )
+            for a in self.ambulances
+        ]
+
+        # Fresh records for anything still in play, so the real run is never mutated.
+        clone.records = {}
+        clone._events = []
+        for ev in self._events:
+            if ev.type is EventType.CALL_ARRIVAL:
+                continue  # the real future stays hidden
+            if ev.call is not None and ev.call.id not in clone.records:
+                clone.records[ev.call.id] = _copy_record(self.records[ev.call.id])
+            heapq.heappush(clone._events, ev)
+        clone.queue = []
+        for rec in self.queue:
+            copied = clone.records.setdefault(rec.call.id, _copy_record(rec))
+            clone.queue.append(copied)
+
+        clone.horizon_start = self.time
+        clone.sampled_ids = set()
+        for call in generate_calls(
+            self.city, horizon, rng, start_time=self.time, first_id=_FORK_ID_BASE
+        ):
+            clone.records[call.id] = CallRecord(call)
+            clone.sampled_ids.add(call.id)
+            clone._push(call.arrival_time, EventType.CALL_ARRIVAL, call=call)
+        return clone
 
     def _handle(self, ev: Event, policy) -> None:
         if ev.amb_id is not None and ev.trip != self.ambulances[ev.amb_id].trip:
