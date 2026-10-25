@@ -59,6 +59,20 @@ class City:
     def nodes(self) -> list[int]:
         return sorted(self.graph.nodes)
 
+    def index_of(self, node: int) -> int:
+        """Row/column of `node` in the travel-time matrix."""
+        return self._index[node]
+
+    def with_bases(self, bases: list[int]) -> "City":
+        """Copy of this city with a different set of station sites."""
+        return City(
+            graph=self.graph,
+            bases=list(bases),
+            hospitals=list(self.hospitals),
+            demand_weights=self.demand_weights,
+            base_call_rate=self.base_call_rate,
+        )
+
     def travel_time(self, u: int, v: int) -> float:
         """Free-flow travel time in minutes from node u to node v."""
         return float(self._tt[self._index[u], self._index[v]])

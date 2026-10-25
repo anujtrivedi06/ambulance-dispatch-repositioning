@@ -69,6 +69,15 @@ class Ambulance:
                 return node, arrive - t
         return self.node, 0.0
 
+    @property
+    def destination(self) -> int:
+        """Where this unit will end up: its target if moving, else where it stands.
+
+        Coverage-aware policies reason about a relocating unit at its destination base,
+        not at its current position, since that is where it will be waiting.
+        """
+        return self.route[-1] if self.route else self.node
+
 
 @dataclass
 class CallRecord:
@@ -104,6 +113,7 @@ class Simulator:
         n_ambulances: int = 4,
         seed: int = 0,
         travel_noise: float = 0.15,
+        home_bases: list[int] | None = None,
     ) -> None:
         self.city = city
         self.calls = sorted(calls, key=lambda c: c.arrival_time)
@@ -115,9 +125,17 @@ class Simulator:
         self.queue: list[CallRecord] = []
         self.records: dict[int, CallRecord] = {}
 
-        bases = city.bases
+        # Round-robin over the stations unless an explicit allocation is given, which is
+        # how MEXCLP homes several units at one station.
+        homes = list(home_bases) if home_bases else [
+            city.bases[i % len(city.bases)] for i in range(n_ambulances)
+        ]
+        if len(homes) != n_ambulances:
+            raise ValueError(
+                f"home_bases has {len(homes)} entries for {n_ambulances} ambulances"
+            )
         self.ambulances = [
-            Ambulance(id=i, home_base=bases[i % len(bases)], node=bases[i % len(bases)])
+            Ambulance(id=i, home_base=homes[i], node=homes[i])
             for i in range(n_ambulances)
         ]
 
