@@ -79,12 +79,38 @@ report shows both rather than picking one.
 
 ## Phase 3 — Online planning / search
 
-- [ ] One-step lookahead with a **Monte Carlo rollout** of a base policy (B3) as the
+- [x] One-step lookahead with a **Monte Carlo rollout** of a base policy (B3) as the
       value estimate — the classic rollout algorithm
-- [ ] **MCTS** over dispatch+reposition actions with a progressive-widening action set
-- [ ] Anytime behaviour study: performance vs. simulation budget per decision
+- [x] **Open-loop MCTS** over sequences of repositioning actions, UCT with normalised values
+- [x] Anytime behaviour study: performance vs. simulation budget per decision
+- [x] Confirmation run at 20 reps x 3 days, to tell a real null from a weak test
 
-**Deliverable:** plot of solution quality vs. compute budget. Shows the search–quality trade-off.
+**Deliverable:** `results/figures/phase3_anytime.png`. The honest result is negative, and
+it is the most useful finding in the project so far.
+
+1. **Neither method beat its own base policy, at any budget.** Coverage stays within noise
+   of DMEXCLP from 1 to 64 simulated futures per decision, while costing 84x to 3460x more
+   compute. The curve is flat: 32x more search buys nothing measurable.
+2. **It is a real null, not low power.** The confirmation run puts the coverage difference
+   at -0.001 with 95% CI [-0.008, +0.006] — tight enough to exclude an effect the size of
+   DMEXCLP's own Phase 2 gain (+0.012).
+3. **The reason is estimator variance, measured directly.** The coverage difference between
+   top candidate stations is ~0.005; the paired standard deviation across sampled futures is
+   ~0.035 even with common random numbers. That needs ~200 futures per candidate per
+   decision, against 1–32 affordable. The search overrides an informative base-policy
+   ranking with an estimate that is mostly noise.
+4. **MCTS ≈ rollout.** Allocating the budget unevenly by UCT changes nothing, which fits (3):
+   the limit is per-sample noise, not how samples are divided. Open-loop node blurring should
+   cost MCTS something but is invisible at this noise floor — these two explanations cannot be
+   separated from this data, so neither is claimed.
+5. **Reward design beat search depth.** Rollout is significantly *worse* on mean response
+   (+0.077 min, p = 0.004, d = 0.73), and all twelve search configurations lean that way while
+   coverage scatters. The binary 8-minute value function cannot tell a 3-minute response from
+   a 7-minute one, so the search trades fast responses away for free.
+
+This is what motivates Phase 4. The fix for a noisy Monte Carlo value estimate is not more
+samples at decision time — it is to amortise the estimate offline into a learned value
+function, which is exactly what ADP and RL do.
 
 ## Phase 4 — Learning
 
@@ -125,6 +151,12 @@ a legitimate and defensible finding — report it either way.
 | 2026-10-25 | MEXCLP allocates units with multiplicity; stations stay distinct | Doubling up on a hotspot is the model's whole point, so the simulator takes an explicit home-base allocation |
 | 2026-10-25 | Report paired t *and* Wilcoxon, require both to agree | Coverage differences are near-symmetric but response-time differences are not; a result only one test supports is not stated as a result |
 | 2026-10-25 | Fixed q = 0.35 in the coverage model, not estimated from the sim | Keeps B3 a pure heuristic with nothing tuned on the test scenarios; adapting q is a Phase 4 comparison point |
+| 2026-10-26 | Forks resample call arrivals instead of replaying the real ones | A fork carrying the real pending calls would let the policy see the future it is graded on; asserted by test rather than left to care |
+| 2026-10-26 | Every candidate scored on the same sampled futures (common random numbers) | Cuts the paired standard deviation from 0.17 to 0.07; without it the comparison is hopeless rather than merely hard |
+| 2026-10-26 | Candidates shortlisted by the base policy's own ranking | Stops budget going to options already known to be poor, and makes an uninformative search degrade to the base policy instead of below it |
+| 2026-10-26 | MCTS is open-loop (nodes keyed by action sequence, not state) | Each iteration samples its own future, so a state-keyed node would never see a second visit |
+| 2026-10-26 | Plot against simulated futures, not the budget parameter | Rollout spends candidates x sims per decision and MCTS spends sims; the parameter would flatter MCTS by the shortlist size |
+| 2026-10-26 | Report the negative Phase 3 result rather than tuning for a win | The null is tight, mechanistically explained, and it is what motivates Phase 4 |
 | 2026-10-25 | Greedy + swap local search for p-median/MEXCLP, not an ILP | Lands on or near the optimum at these graph sizes with no solver dependency |
 | 2026-10-25 | MEXCLP allocates units with multiplicity, stations stay distinct | Doubling up on a hotspot is the model's whole point; the simulator takes an explicit home-base allocation so it can be reproduced |
 | 2026-10-25 | Report paired t *and* Wilcoxon, require both | Coverage differences are near-symmetric but response-time differences are not; a result only one test supports is not stated as a result |

@@ -33,6 +33,7 @@ decision process** over a discrete-event simulation:
 pip install -r requirements.txt
 python scripts/run_baseline.py --days 7 --reps 10
 python scripts/run_phase2.py --days 7 --reps 30
+python scripts/run_phase3.py --methods rollout --budgets 1,4,16
 python -m pytest tests -q
 ```
 
@@ -65,6 +66,45 @@ Wilcoxon signed-rank (n = 30). The interesting part is the decomposition:
 
 Reproduce with `python scripts/run_phase2.py --reps 30 --days 7`.
 
+### Phase 3: online search does not pay here
+
+Rollout and MCTS both estimate the value of a repositioning action by simulating sampled
+futures under DMEXCLP. Across budgets from 1 to 64 simulated futures per decision, neither
+beat the base policy they were rolling out, on any metric, at any budget — and the curve is
+*flat*, so 32x more simulation bought nothing measurable:
+
+| policy | coverage | mean response | cost vs base |
+|---|---|---|---|
+| DMEXCLP base | 0.876 | 5.08 min | 1x |
+| rollout m=1 | 0.876 | 5.26 min | 84x |
+| rollout m=8 | 0.884 | 5.22 min | 867x |
+| rollout m=32 | 0.883 | 5.25 min | 3400x |
+| MCTS n=2 | 0.872 | 5.27 min | 98x |
+| MCTS n=32 | 0.886 | 5.21 min | 1545x |
+| MCTS n=64 | 0.880 | 5.26 min | 3460x |
+
+A confirmation run at 20 replications x 3 days
+(`python scripts/run_phase3.py --methods rollout --budgets 8 --reps 20 --days 3`) makes this
+a real null rather than a weak test: coverage differs by -0.001 with a 95% CI of
+[-0.008, +0.006], tight enough to exclude an effect the size of DMEXCLP's own Phase 2 gain
+(+0.012). **Why** is measurable directly: the coverage difference between the top candidate
+stations is about 0.005, while the paired standard deviation across sampled futures is
+about 0.035 even with common random numbers. Resolving that needs ~200 simulated futures
+per candidate per decision, against the 1–32 that are affordable. The search is overriding
+a base-policy ranking that carries real information, using an estimate that is mostly noise.
+
+The same run found something sharper. Rollout is **significantly worse on mean response**
+(+0.077 min, p = 0.004, d = 0.73), and every one of the twelve search configurations leans
+the same way while coverage scatters with no direction. The mechanism is the value function,
+not the search: scoring the binary 8-minute indicator makes the agent completely indifferent
+between a 3-minute and a 7-minute response, so it trades fast responses away for nothing.
+On this problem, reward design mattered more than search depth.
+
+![Quality vs simulation budget](results/figures/phase3_anytime.png)
+
+Reproduce with `python scripts/run_phase3.py --methods rollout --out results/phase3_rollout.csv`
+(and `--methods mcts`), then `python scripts/plot_phase3.py results/phase3_*.csv`.
+
 ## Layout
 
 ```
@@ -76,7 +116,13 @@ src/ambulance/
   experiment.py      paired, seeded replications
   stats.py           paired t + Wilcoxon significance testing
   policies/          one Policy interface, every method behind it
+    nearest.py       B1 nearest-idle, and a random floor
+    coverage.py      B3 DMEXCLP dynamic repositioning
+    rollout.py       one-step lookahead with Monte Carlo rollout
+    mcts.py          open-loop MCTS over repositioning sequences
 scripts/run_baseline.py   Phase 1 reference policies
 scripts/run_phase2.py     station optimisation + dynamic repositioning
+scripts/run_phase3.py     online search, budget sweep
+scripts/plot_phase3.py    the anytime curve
 tests/
 ```
