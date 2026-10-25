@@ -154,6 +154,10 @@ def main() -> None:
         print(f"{name:<28}{elapsed:>11.1f}s{sims / args.reps:>12.0f}"
               f"{elapsed / base_cost:>13.1f}x")
 
+    if args.out is not None:
+        _write_csv(args.out, per_rep, cost, args)
+        print(f"\nwrote {args.out}")
+
     print("\nsignificance vs the base policy being rolled out")
     for name in per_rep:
         if name == "dmexclp (base)":
