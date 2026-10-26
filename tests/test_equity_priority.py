@@ -138,3 +138,46 @@ def test_selective_with_zero_reserve_changes_nothing(setup):
 def test_selective_rejects_a_negative_reserve():
     with pytest.raises(ValueError):
         SelectiveDispatch(DMEXCLP(), reserve=-1)
+
+
+# ------------------------------------------------------- headroom floor policy
+
+
+def test_random_reposition_keeps_dispatch_greedy(setup):
+    """It must differ from DMEXCLP only in where idle units park.
+
+    The regime sweep reads the gap between the two as the value of the repositioning
+    choice, which is only true if dispatch is identical in both.
+    """
+    from ambulance.policies import RandomReposition
+
+    city, alloc = setup
+    policy = RandomReposition(seed=0)
+    _, sim = run(city, DMEXCLP(), alloc, seed=2)
+    call = Call(id=-1, node=city.nodes[7], arrival_time=sim.time, priority=1)
+    assert policy.dispatch(sim, call) == DMEXCLP().dispatch(sim, call)
+
+
+def test_random_reposition_is_reproducible_and_picks_stations(setup):
+    from ambulance.policies import RandomReposition
+
+    city, alloc = setup
+    runs = []
+    for _ in range(2):
+        policy = RandomReposition(seed=3)
+        policy.reset()
+        records, sim = run(city, policy, alloc, seed=3)
+        runs.append([r.response_time for r in records])
+        assert all(a.destination in city.bases or a.node in city.bases
+                   for a in sim.ambulances)
+    assert runs[0] == runs[1]
+
+
+def test_random_reposition_is_worse_than_dmexclp(setup):
+    """If this ever fails, the headroom measure has lost its meaning."""
+    city, alloc = setup
+    from ambulance.policies import RandomReposition
+
+    base, _ = run(city, DMEXCLP(), alloc, seed=8)
+    floor, _ = run(city, RandomReposition(seed=0), alloc, seed=8)
+    assert summarise(base, city)["coverage"] > summarise(floor, city)["coverage"]

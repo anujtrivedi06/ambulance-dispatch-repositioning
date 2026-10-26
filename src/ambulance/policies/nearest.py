@@ -27,6 +27,35 @@ class NearestIdleHomeBase(Policy):
         return sim.ambulances[amb_id].home_base
 
 
+class RandomReposition(Policy):
+    """Nearest-idle dispatch, but idle units park at a uniformly random station.
+
+    This exists to measure *headroom*: the gap between it and the best known
+    repositioning rule is how much the repositioning choice is worth at all in a given
+    configuration. If that gap is small, no method can win there, however clever -- which
+    is the hypothesis the regime sweep is testing. Holding dispatch fixed is what makes
+    the gap attributable to repositioning alone.
+    """
+
+    name = "random-reposition"
+
+    def __init__(self, seed: int = 0) -> None:
+        self.seed = seed
+        self.rng = np.random.default_rng(seed)
+
+    def reset(self) -> None:
+        self.rng = np.random.default_rng(self.seed)
+
+    def dispatch(self, sim, call: Call) -> int | None:
+        available = sim.available()
+        if not available:
+            return None
+        return min(available, key=lambda a: sim.travel_time_to(a, call.node)).id
+
+    def reposition(self, sim, amb_id: int) -> int:
+        return int(self.rng.choice(sim.city.bases))
+
+
 class RandomPolicy(Policy):
     """Uniformly random choices. A sanity floor -- any real method must beat this."""
 

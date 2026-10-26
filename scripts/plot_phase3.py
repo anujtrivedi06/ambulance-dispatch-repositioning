@@ -44,10 +44,19 @@ def main() -> None:
     )
     ap.add_argument("--out", type=Path, default=Path("results/figures/phase3_anytime.png"))
     ap.add_argument("--metric", default="coverage")
+    ap.add_argument(
+        "--reps",
+        type=int,
+        default=5,
+        help="replications behind each point; must match the sweep that wrote the CSV",
+    )
     args = ap.parse_args()
 
     rows = load(args.csv)
-    n_reps = 5  # replications behind each point; sets the standard-error bars
+    # Taken from the caller rather than hardcoded: the CSV stores per-replication spread
+    # but not how many replications produced it, so a wrong count here silently scales
+    # every error bar and the figure still looks plausible.
+    n_reps = args.reps
     base = next((r for r in rows if r["method"].startswith("dmexclp")), None)
 
     fig, (ax, ax_cost) = plt.subplots(1, 2, figsize=(11, 4.2))

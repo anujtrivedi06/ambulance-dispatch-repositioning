@@ -3,7 +3,7 @@ from .base import Policy
 from .coverage import DMEXCLP
 from .equity import EquityDMEXCLP
 from .mcts import MCTSPolicy
-from .nearest import NearestIdleHomeBase, RandomPolicy
+from .nearest import NearestIdleHomeBase, RandomPolicy, RandomReposition
 from .rollout import RolloutPolicy
 from .selective import SelectiveDispatch
 
@@ -11,6 +11,7 @@ __all__ = [
     "Policy",
     "NearestIdleHomeBase",
     "RandomPolicy",
+    "RandomReposition",
     "DMEXCLP",
     "RolloutPolicy",
     "MCTSPolicy",
