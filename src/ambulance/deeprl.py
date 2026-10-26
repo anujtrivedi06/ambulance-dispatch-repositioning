@@ -30,7 +30,7 @@ from torch import nn
 from .adp import DEFAULT_BETA, rewards_between
 from .city import City, generate_calls
 from .experiment import CALL_SEED_BASE, SIM_SEED_BASE
-from .features import FeatureExtractor
+from .features import FEATURE_NAMES, FeatureExtractor
 from .policies.base import Policy
 from .policies.coverage import DMEXCLP
 from .sim import Simulator
@@ -69,6 +69,38 @@ class ValueNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x).squeeze(-1)
+
+
+def save_agent(net: "ValueNet", path, config: dict | None = None) -> None:
+    """Persist a trained agent so it can be evaluated without retraining.
+
+    The feature layout is stored alongside the weights. A value function is meaningless
+    without the exact feature vector it was fitted to, and silently loading weights into
+    a mismatched input would produce a policy that runs fine and chooses badly.
+    """
+    from pathlib import Path
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "state_dict": net.state_dict(),
+            "d_in": net.net[0].in_features,
+            "hidden": net.net[0].out_features,
+            "features": list(FEATURE_NAMES) + [f"zone_coverage_{z}" for z in range(4)],
+            "config": config or {},
+        },
+        path,
+    )
+
+
+def load_agent(path, device: str = "cpu") -> tuple["ValueNet", dict]:
+    """Restore a saved agent. Returns the network in eval mode and its config."""
+    blob = torch.load(path, map_location=device, weights_only=False)
+    net = ValueNet(blob["d_in"], hidden=blob["hidden"]).to(device)
+    net.load_state_dict(blob["state_dict"])
+    net.eval()
+    return net, blob.get("config", {})
 
 
 @dataclass
@@ -211,6 +243,7 @@ def train_nfq(
     seed: int = 0,
     device: str = "cpu",
     fresh_buffer: bool = False,
+    eval_fn=None,
     **collect_kw,
 ) -> tuple[ValueNet, list[dict[str, float]]]:
     """Alternate collecting under the current greedy policy and refitting to TD targets.
@@ -267,7 +300,15 @@ def train_nfq(
             loss.backward()
             optimiser.step()
             losses.append(loss.detach().item())
-        history.append(
-            {"round": rnd + 1, "transitions": len(buffer), "loss": float(np.mean(losses))}
-        )
+        entry = {
+            "round": rnd + 1,
+            "transitions": len(buffer),
+            "loss": float(np.mean(losses)),
+        }
+        if eval_fn is not None:
+            # Evaluated on held-out episodes after every round, which is what turns the
+            # run into a learning curve. Training loss alone cannot show this: a value
+            # function can fit its own targets better while ranking actions worse.
+            entry.update(eval_fn(rnd + 1, net))
+        history.append(entry)
     return net, history

@@ -1,45 +1,92 @@
-# Ambulance Dispatch and Repositioning
+# Reinforcement Learning for Ambulance Dispatch and Repositioning
 
-AI course project (Assignment 2) — Anuj Trivedi, B23CH1006, IIT Jodhpur.
+**AI Mini Project, Assignment 2** — Anuj Trivedi (B23CH1006), IIT Jodhpur.
+Report: [`report/AI_Assignment2_Report.pdf`](report/AI_Assignment2_Report.pdf) ·
+Trained agent: [`models/nfq_agent.pt`](models/nfq_agent.pt)
 
 Emergency calls arrive stochastically across a city road network. A fleet of ambulances
-must serve them, and an agent makes two coupled decisions:
+must serve them, and an agent makes two coupled decisions: **dispatch** (which available
+unit to send) and **repositioning** (where each idle unit waits). The two conflict —
+sending the nearest unit is optimal for the call in front of you, but it can strip cover
+from a dense zone and cost the next call far more than it saved.
 
-- **Dispatch** — when a call comes in, which available unit to send (or whether to let it wait).
-- **Repositioning** — where each idle unit should wait, re-decided as the fleet state changes.
+An RL agent is trained to make the repositioning decision, and measured against the
+dispatch heuristics real emergency services use.
 
-The two conflict. Sending the nearest unit is optimal for the call in front of you, but it
-can strip cover from a dense zone and cost the next call far more than it saved this one.
-The project builds a simulation testbed for that trade-off and compares classical
-heuristics, online search, and learned policies on it.
+## RL formulation
 
-See [ROADMAP.md](ROADMAP.md) for the formulation, the phase plan, and the decision log.
-
-## Model
-
-Decisions occur only at event epochs, so the problem is modelled as a **semi-Markov
-decision process** over a discrete-event simulation:
+Decisions occur only at irregular event epochs — a call arriving, or a unit becoming free
+— so this is a **semi-Markov decision process**, and discounting is continuous-time.
 
 | | |
 |---|---|
-| State | time, per-unit (status, position, ETA), queue of unserved calls |
-| Action | which unit to dispatch; which base an idle unit drives to |
-| Stochasticity | time-varying Poisson arrivals, spatial demand hotspots, noisy travel times, random on-scene durations |
-| Objective | maximise calls reached within 8 minutes; report mean/p90 response time and worst-zone coverage |
+| **State** `S` | 11-dim post-decision feature vector: available fraction, time-of-day (sin, cos), expected covered demand, worst-zone coverage, demand-weighted distance, 4 per-zone coverages, bias. Underlying state space ≈ (64×6)^6 ≈ 10^15, so function approximation is mandatory. |
+| **Action** `A` | Discrete. Repositioning: one of M stations (M = 4, swept to 8). Dispatch: an available unit, or defer to queue. |
+| **Reward** `R` | `r_k = Σ ρ(i)` over calls reached in `[t_k, t_k+1)`. Shaped: `ρ = −min(T_i, 40)/10`. Binary: `ρ = 1{T_i ≤ 8 min}`. Discount `γ_k = exp(−βΔt)`, `β = 1/240` per minute. |
+| **Algorithm** | Neural fitted value iteration over post-decision states (DQN family): 2×64 MLP, target network frozen per round, ε-greedy collection, experience replay. Also LSTD and LSPI. |
 
-## Quick start
+## Installation
+
+Requires Python 3.10+ (developed on 3.12). CPU only — no GPU needed.
 
 ```bash
+git clone https://github.com/anujtrivedi06/ambulance-dispatch-repositioning
+cd ambulance-dispatch-repositioning
 pip install -r requirements.txt
-python scripts/run_baseline.py --days 7 --reps 10
-python scripts/run_phase2.py --days 7 --reps 30
-python scripts/run_phase3.py --methods rollout --budgets 1,4,16
-python scripts/run_phase4.py --reps 30 --days 7
-python scripts/run_phase5.py --reps 30 --days 7
-python -m pytest tests -q
+python -m pytest tests -q          # 66 tests, ~8 s
 ```
 
-## Current results
+Dependencies: `numpy`, `networkx`, `scipy`, `matplotlib`, `pandas`, `torch` (CPU),
+`pytest`, plus `reportlab` if you want to rebuild the report PDF.
+
+## Train and evaluate the RL agent
+
+```bash
+python scripts/train_agent.py --rounds 8          # trains, saves models/nfq_agent.pt
+python scripts/plot_learning_curve.py results/learning_curve.csv --baseline 0.8446
+```
+
+`train_agent.py` trains the agent, selects its checkpoint on a **validation** block of
+episodes, scores it on a disjoint **test** block, tests generalisation to an unseen demand
+profile, and writes the trained weights plus a learning curve. The saved checkpoint stores
+its feature layout alongside the weights, so a mismatched load fails loudly instead of
+silently choosing badly.
+
+## Results: the RL agent
+
+30 paired replications × 7 simulated days, on test seeds disjoint from training and
+validation:
+
+| policy | coverage (≤8 min) | mean response | worst-zone |
+|---|---|---|---|
+| Random repositioning (untrained floor) | 0.357 | 10.09 min | 0.282 |
+| DMEXCLP (strong domain heuristic) | 0.872 | 5.26 min | **0.822** |
+| **RL agent (NFQ, shaped reward)** | **0.874** | **5.24 min** | 0.818 |
+| RL agent (NFQ, binary reward) | 0.724 | 6.60 min | 0.384 |
+
+The agent **reaches parity with the heuristic** (+0.002 coverage, p = 0.32 — not
+significant) and beats the untrained floor by +0.052 (p = 2e-17). The binary reward
+collapses the same architecture to 0.724, and its worst-zone coverage to 0.384.
+
+**Generalisation is partial**, and it is the agent's clearest weakness. On a demand profile
+with relocated hotspots it holds absolute performance (0.873, still +0.063 over the floor),
+but the heuristic *improves* to 0.887 on that easier profile and the agent does not follow:
+parity becomes a significant −0.014 deficit (p = 4e-7). The learned value function is tuned
+to the demand distribution it saw; the heuristic recomputes coverage live and adapts free.
+
+![Learning curve](results/figures/learning_curve.png)
+
+## Reproducing the analysis
+
+```bash
+python scripts/run_phase2.py --days 7 --reps 30    # station placement baselines
+python scripts/run_phase3.py --methods rollout --budgets 1,4,16
+python scripts/run_phase4.py --reps 30 --days 7    # all learners + reward ablation
+python scripts/run_phase5.py --reps 30 --days 7    # equity and priority analysis
+python scripts/run_regimes.py --reps 8 --days 3    # load and station-count sweep
+```
+
+## Baselines and supporting analysis
 
 8x8 grid city, 4 stations, 6 ambulances, 4 calls/hour, 7 simulated days x 30 paired
 replications (~648 calls per replication):
@@ -248,21 +295,24 @@ src/ambulance/
   city.py            road graph, travel times, demand model, call generation
   sim.py             discrete-event simulator, ambulance state machine, forking
   location.py        static station placement: p-median and MEXCLP
-  features.py        post-decision state features for learning
-  adp.py             LSTD / LSPI value-function fitting
-  policy_search.py   cross-entropy search over the same linear class
-  deeprl.py          neural fitted value iteration
   metrics.py         response-time, coverage and equity metrics
   experiment.py      paired, seeded replications
   stats.py           paired t + Wilcoxon significance testing
+  features.py        post-decision state features for the RL agent
+  adp.py             LSTD / LSPI value-function fitting
+  deeprl.py          neural fitted value iteration (the RL agent)
+  policy_search.py   cross-entropy control over the same linear class
   policies/          one Policy interface, every method behind it
-    nearest.py       B1 nearest-idle, and a random floor
+    nearest.py       nearest-idle baselines, and a random floor
     coverage.py      B3 DMEXCLP dynamic repositioning
     rollout.py       one-step lookahead with Monte Carlo rollout
     mcts.py          open-loop MCTS over repositioning sequences
     adp.py           greedy over a learned value function
     equity.py        coverage weighted toward the worst-served zone
     selective.py     holding units back from routine calls
+models/nfq_agent.pt       the trained RL agent (weights + feature layout)
+report/                   the 2-page report, its LaTeX source and build script
+scripts/train_agent.py    train, select, evaluate and save the RL agent
 scripts/run_baseline.py   Phase 1 reference policies
 scripts/run_phase2.py     station optimisation + dynamic repositioning
 scripts/run_phase3.py     online search, budget sweep

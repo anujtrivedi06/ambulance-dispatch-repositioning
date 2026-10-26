@@ -38,12 +38,63 @@ REWARD_LABEL = {
 }
 
 
+def build_compact(args) -> None:
+    """One narrow panel carrying both messages, for a two-column report.
+
+    The three-panel version is unreadable at column width, and shrinking it would put a
+    figure in the report that nobody can read. Horizontal bars instead, so the policy
+    names have room, with coverage and worst-zone side by side.
+    """
+    with args.csv.open(encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+
+    labels = [r["policy"].replace(" (base)", "") for r in rows]
+    y = np.arange(len(rows))
+    height = 0.38
+
+    fig, ax = plt.subplots(figsize=(4.3, 3.6))
+    ax.barh(
+        y + height / 2, [float(r["coverage"]) for r in rows], height,
+        color=[REWARD_COLOUR.get(r["reward"], "tab:gray") for r in rows],
+        label="coverage",
+    )
+    ax.barh(
+        y - height / 2, [float(r["worst_zone_coverage"]) for r in rows], height,
+        color=[REWARD_COLOUR.get(r["reward"], "tab:gray") for r in rows],
+        alpha=0.45, label="worst-zone coverage",
+    )
+    ax.axvline(float(rows[0]["coverage"]), color="black", ls="--", lw=1.1, zorder=0)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=7)
+    ax.set_xlabel("fraction within 8 min", fontsize=8)
+    ax.tick_params(axis="x", labelsize=7)
+    ax.set_xlim(0, 1.0)
+    ax.legend(fontsize=7, frameon=False, loc="lower right")
+    ax.set_title("Solid: coverage.  Faded: worst zone.", fontsize=8)
+    ax.grid(axis="x", alpha=0.3)
+    fig.tight_layout()
+
+    out = args.out.with_name("phase4_reward_compact.png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=200)
+    print(f"wrote {out}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("csv", type=Path, nargs="?", default=Path("results/phase4.csv"))
     ap.add_argument("--out", type=Path, default=Path("results/figures/phase4_reward.png"))
     ap.add_argument("--reps", type=int, default=30)
+    ap.add_argument(
+        "--compact",
+        action="store_true",
+        help="single narrow panel sized for one column of the report",
+    )
     args = ap.parse_args()
+
+    if args.compact:
+        build_compact(args)
+        return
 
     with args.csv.open(encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))

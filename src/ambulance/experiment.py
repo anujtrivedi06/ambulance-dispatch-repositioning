@@ -19,6 +19,7 @@ def evaluate(
     reps: int = 30,
     n_ambulances: int = 6,
     home_bases: list[int] | None = None,
+    seed_offset: int = 0,
 ) -> list[dict[str, float]]:
     """Metrics for each replication.
 
@@ -26,18 +27,23 @@ def evaluate(
     `SIM_SEED_BASE + r`, so every policy faces an identical call stream and identical
     travel-noise stream in replication `r`. Comparisons are therefore paired: the
     arrival process cancels out instead of drowning the policy effect.
+
+    `seed_offset` shifts to a disjoint block of episodes. It exists so a validation set
+    used for model selection can be kept separate from the test set used to report:
+    picking a checkpoint on the episodes it is then scored on is not an honest estimate.
     """
     out = []
     for rep in range(reps):
         calls = generate_calls(
-            city, days * 24 * 60, np.random.default_rng(CALL_SEED_BASE + rep)
+            city, days * 24 * 60,
+            np.random.default_rng(CALL_SEED_BASE + seed_offset + rep),
         )
         policy.reset()
         sim = Simulator(
             city,
             calls,
             n_ambulances=n_ambulances,
-            seed=SIM_SEED_BASE + rep,
+            seed=SIM_SEED_BASE + seed_offset + rep,
             home_bases=home_bases,
         )
         out.append(summarise(sim.run(policy), city))

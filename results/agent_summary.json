@@ -1,0 +1,113 @@
+{
+  "config": {
+    "algorithm": "neural fitted value iteration (post-decision states)",
+    "reward": "response",
+    "rounds": 8,
+    "selected_round": 6,
+    "episodes_per_round": 20,
+    "epsilon": 0.5,
+    "grid": 8,
+    "stations": 4,
+    "ambulances": 6,
+    "call_rate": 4.0,
+    "busy_prob": 0.35,
+    "stations_nodes": [
+      11,
+      27,
+      43,
+      51
+    ],
+    "home_bases": [
+      51,
+      27,
+      43,
+      11,
+      43,
+      11
+    ]
+  },
+  "trained_profile": {
+    "dmexclp": {
+      "n_calls": 647.8,
+      "served": 647.8,
+      "coverage": 0.8720285271443923,
+      "mean_response": 5.26227693325536,
+      "p90_response": 8.80639592811492,
+      "max_response": 37.73107559739575,
+      "mean_queue_wait": 0.4042660506124899,
+      "queued_frac": 0.05351812624701001,
+      "worst_zone_coverage": 0.8222173633617685,
+      "zone_coverage_gap": 0.09403223709623004,
+      "coverage_p1": 0.8731509330382933,
+      "mean_response_p1": 5.193789679976147,
+      "p90_response_p1": 8.750863239626904,
+      "n_calls_p1": 384.3,
+      "coverage_p2": 0.8708978172082048,
+      "mean_response_p2": 5.3569389098103795,
+      "p90_response_p2": 8.886725269535145,
+      "n_calls_p2": 263.5
+    },
+    "rl agent (NFQ)": {
+      "n_calls": 647.8,
+      "served": 647.8,
+      "coverage": 0.8744275285610936,
+      "mean_response": 5.24025144514154,
+      "p90_response": 8.77420276235907,
+      "max_response": 38.6494322226248,
+      "mean_queue_wait": 0.40370626539004406,
+      "queued_frac": 0.05341346167614687,
+      "worst_zone_coverage": 0.817606353668788,
+      "zone_coverage_gap": 0.10146112683596713,
+      "coverage_p1": 0.8737211795576427,
+      "mean_response_p1": 5.156538923574012,
+      "p90_response_p1": 8.755164485411143,
+      "n_calls_p1": 384.3,
+      "coverage_p2": 0.8758095903229279,
+      "mean_response_p2": 5.356672081433828,
+      "p90_response_p2": 8.800657777844398,
+      "n_calls_p2": 263.5
+    }
+  },
+  "shifted_profile": {
+    "dmexclp": {
+      "n_calls": 647.8,
+      "served": 647.8,
+      "coverage": 0.8873060939736647,
+      "mean_response": 4.771331452573812,
+      "p90_response": 8.362473979577763,
+      "max_response": 38.18121661897785,
+      "mean_queue_wait": 0.33527557887741233,
+      "queued_frac": 0.04716754610759647,
+      "worst_zone_coverage": 0.852978210678792,
+      "zone_coverage_gap": 0.09076683550210199,
+      "coverage_p1": 0.8872848285244819,
+      "mean_response_p1": 4.689740784781695,
+      "p90_response_p1": 8.325543687413372,
+      "n_calls_p1": 384.3,
+      "coverage_p2": 0.8875638688502232,
+      "mean_response_p2": 4.888006453778352,
+      "p90_response_p2": 8.357893518512654,
+      "n_calls_p2": 263.5
+    },
+    "rl agent (NFQ)": {
+      "n_calls": 647.8,
+      "served": 647.8,
+      "coverage": 0.8731086571708323,
+      "mean_response": 4.884535062623637,
+      "p90_response": 8.741259325845828,
+      "max_response": 36.74553084651863,
+      "mean_queue_wait": 0.3404544225679673,
+      "queued_frac": 0.04748654244167833,
+      "worst_zone_coverage": 0.8203191860367699,
+      "zone_coverage_gap": 0.12061927810430027,
+      "coverage_p1": 0.8709223463357447,
+      "mean_response_p1": 4.837535701925552,
+      "p90_response_p1": 8.79045288944666,
+      "n_calls_p1": 384.3,
+      "coverage_p2": 0.8766014388885693,
+      "mean_response_p2": 4.951887602576316,
+      "p90_response_p2": 8.593832642485685,
+      "n_calls_p2": 263.5
+    }
+  }
+}
