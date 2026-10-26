@@ -150,8 +150,29 @@ down matters more than the machinery you point at it.
 
 ## Phase 5 — Analysis & extensions (pick 2)
 
-- [ ] **Priority classes** and *selective dispatch* — is it ever right to hold a unit back?
-- [ ] **Equity vs. efficiency** Pareto frontier (city-wide mean vs. worst-zone performance)
+- [x] **Priority classes** and *selective dispatch* — is it ever right to hold a unit back?
+- [x] **Equity vs. efficiency** Pareto frontier (city-wide mean vs. worst-zone performance)
+
+**Deliverable:** `results/figures/phase5_tradeoffs.png`. One trade-off is real and badly
+priced; the other turns out not to exist.
+
+1. **Selective dispatch works and is a bad deal.** Reserving two units is the only setting
+   with a significant urgent-coverage gain (+0.009, p = 0.004), bought for −0.116 routine
+   coverage (p = 6.5e-21) — about 13 routine points per urgent point. Reserving four is
+   worse than reserving none for *both* classes, because the queue backs up far enough to
+   delay the urgent calls the reserve was protecting.
+2. **No equity/efficiency frontier exists at this configuration.** Every λ from 0 to 1 lands
+   within ~2 standard errors of plain DMEXCLP on both axes; the best moves worst-zone
+   coverage by +0.001 (p = 0.92) and λ = 1 is significantly worse city-wide.
+3. **And not because the knob is inert — that was measured, not assumed.** λ = 1 changes
+   41% of 1,248 repositioning decisions, λ = 0.7 changes 26%. Behaviour moves a lot; results
+   do not move at all.
+4. **Which is Phase 3's finding from the other side.** The candidate stations differ by
+   ~0.005 coverage against ~0.035 of noise, so search cannot resolve them (Phase 3) *and*
+   equity cannot be traded against efficiency (Phase 5). Same cause, different symptom.
+   The honest caveat: this is a statement about 4 stations and 6 units at 65% utilisation,
+   not about the problem in general. A finer station set would give the lever something
+   to pull.
 - [ ] **Fleet sizing**: marginal value of the Nth ambulance
 - [ ] **Real city graph** via OSMnx (Jodhpur) with time-of-day traffic multipliers
 - [ ] **Robustness**: performance under a mass-casualty demand spike
@@ -186,6 +207,9 @@ down matters more than the machinery you point at it.
 | 2026-10-26 | CEM over the same linear class kept as a control, not as a method | It is the only way to separate "the features are wrong" from "fitting value does not rank actions"; without it the ADP result is uninterpretable |
 | 2026-10-26 | Deep RL written directly against the simulator, no Gymnasium | The simulator already is the environment; a wrapper would add a dependency and an adapter layer for nothing |
 | 2026-10-26 | Deep RL swept over rewards and buffers before being reported | One hyperparameter setting said "deep RL fails"; the sweep showed the reward was doing the work and the architecture was not |
+| 2026-10-26 | Equity weight measured for how often it changes the decision | A flat set of outcomes has two opposite explanations — an inert knob, or a knob whose choices do not matter. Measuring it showed the second, and the first was the wrong guess |
+| 2026-10-26 | Phase 5's equity panel drawn with a noise band, not a Pareto front | Marking non-dominated points would manufacture a trade-off curve out of sampling noise; every point is inside ±2 s.e. of λ=0 |
+| 2026-10-26 | Selective dispatch withholds only while a unit is busy | Otherwise no BECOME_FREE event ever fires and a held call waits out the run: a deadlock, not a trade-off. Covered by a test |
 | 2026-10-25 | Greedy + swap local search for p-median/MEXCLP, not an ILP | Lands on or near the optimum at these graph sizes with no solver dependency |
 | 2026-10-25 | MEXCLP allocates units with multiplicity, stations stay distinct | Doubling up on a hotspot is the model's whole point; the simulator takes an explicit home-base allocation so it can be reproduced |
 | 2026-10-25 | Report paired t *and* Wilcoxon, require both | Coverage differences are near-symmetric but response-time differences are not; a result only one test supports is not stated as a result |

@@ -35,6 +35,7 @@ python scripts/run_baseline.py --days 7 --reps 10
 python scripts/run_phase2.py --days 7 --reps 30
 python scripts/run_phase3.py --methods rollout --budgets 1,4,16
 python scripts/run_phase4.py --reps 30 --days 7
+python scripts/run_phase5.py --reps 30 --days 7
 python -m pytest tests -q
 ```
 
@@ -153,6 +154,47 @@ directions.
 Reproduce with `python scripts/run_phase4.py --reps 30 --days 7 --out-csv results/phase4.csv`,
 then `python scripts/plot_phase4.py results/phase4.csv`.
 
+### Phase 5: one trade-off is real and badly priced, the other does not exist
+
+**Selective dispatch.** Holding units back from routine calls to stay ready for urgent
+ones does work — and costs far more than it buys:
+
+| units reserved | urgent coverage | routine coverage | routine mean response |
+|---|---|---|---|
+| 0 (dispatch everything) | 0.873 | 0.871 | 5.36 min |
+| 1 | 0.877 | 0.841 | 5.86 min |
+| 2 | **0.882** | 0.754 | 7.16 min |
+| 3 | 0.880 | 0.581 | 9.87 min |
+| 4 | 0.873 | 0.378 | 14.25 min |
+
+Reserving two units is the only setting with a significant urgent-coverage gain (+0.009,
+p = 0.004), and it costs −0.116 routine coverage (p = 6.5e-21): roughly **13 routine
+percentage points per urgent point**. Past that the queue backs up enough that urgent calls
+suffer too — reserving four units is worse than reserving none, for everybody. A policy
+that sounds obviously sensible turns out to be quantifiably a bad deal at this load.
+
+**Equity vs efficiency — there is no frontier here.** Sweeping the equity weight λ from 0
+to 1 moves city-wide coverage between 0.866 and 0.875 and worst-zone coverage between 0.816
+and 0.823, every point inside about two standard errors of plain DMEXCLP. The best λ moves
+worst-zone coverage by +0.001 (p = 0.92); λ = 1 is significantly *worse* city-wide (−0.006)
+and no better on equity.
+
+The obvious explanation — that the weight never changes the decision — is wrong, and the
+run measures it rather than assuming: **λ = 1 picks a different station in 41% of 1,248
+repositioning decisions**, λ = 0.7 in 26%. The policy's behaviour changes substantially and
+the outcome does not move at all.
+
+That lands on the same fact Phase 3 measured from the other side: the candidate stations are
+near-equivalent in outcome terms (≈0.005 coverage apart, against 0.035 of noise). Phase 3
+found search cannot pay because the differences are too small to resolve; Phase 5 finds
+equity cannot be bought because those same small differences mean the lever does not exist.
+One underlying cause, three phases, three symptoms.
+
+![Phase 5 trade-offs](results/figures/phase5_tradeoffs.png)
+
+Reproduce with `python scripts/run_phase5.py --reps 30 --days 7 --out-csv results/phase5.csv`,
+then `python scripts/plot_phase5.py results/phase5.csv`.
+
 ## Layout
 
 ```
@@ -173,11 +215,15 @@ src/ambulance/
     rollout.py       one-step lookahead with Monte Carlo rollout
     mcts.py          open-loop MCTS over repositioning sequences
     adp.py           greedy over a learned value function
+    equity.py        coverage weighted toward the worst-served zone
+    selective.py     holding units back from routine calls
 scripts/run_baseline.py   Phase 1 reference policies
 scripts/run_phase2.py     station optimisation + dynamic repositioning
 scripts/run_phase3.py     online search, budget sweep
 scripts/run_phase4.py     learned policies and the reward ablation
 scripts/plot_phase3.py    the anytime curve
+scripts/run_phase5.py     equity frontier + selective dispatch
 scripts/plot_phase4.py    the reward ablation
+scripts/plot_phase5.py    the Phase 5 trade-offs
 tests/
 ```
