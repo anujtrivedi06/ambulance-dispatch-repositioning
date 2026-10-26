@@ -328,7 +328,7 @@ SECTIONS_B: list[tuple[str, list[str]]] = [
             "intervals, disjoint validation and test seeds, and two agreeing significance "
             "tests &mdash; is more useful than a tuned victory.",
             "The repository contains the full environment, all agents, the trained "
-            "network, 66 tests, and scripts reproducing every figure and table here.",
+            "network, 70 tests, and scripts reproducing every figure and table here.",
         ],
     ),
 ]

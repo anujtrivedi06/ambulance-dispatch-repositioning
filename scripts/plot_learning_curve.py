@@ -69,7 +69,7 @@ def main() -> None:
         twin.tick_params(axis="y", labelcolor="tab:red")
         h2, l2 = twin.get_legend_handles_labels()
         handles, labels = handles + h2, labels + l2
-    ax.legend(handles, labels, frameon=False, fontsize=8, loc="lower right")
+    ax.legend(handles, labels, frameon=False, fontsize=8, loc="upper left")
 
     spread = max(coverage) - min(coverage)
     ax.set_title(

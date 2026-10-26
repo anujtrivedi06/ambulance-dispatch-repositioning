@@ -69,7 +69,8 @@ def build_compact(args) -> None:
     ax.set_xlabel("fraction within 8 min", fontsize=8)
     ax.tick_params(axis="x", labelsize=7)
     ax.set_xlim(0, 1.0)
-    ax.legend(fontsize=7, frameon=False, loc="lower right")
+    # No legend: the title already states the encoding, and at this size a legend box
+    # sits on top of the bars it is meant to explain.
     ax.set_title("Solid: coverage.  Faded: worst zone.", fontsize=8)
     ax.grid(axis="x", alpha=0.3)
     fig.tight_layout()

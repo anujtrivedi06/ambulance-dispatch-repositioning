@@ -33,7 +33,7 @@ Requires Python 3.10+ (developed on 3.12). CPU only — no GPU needed.
 git clone https://github.com/anujtrivedi06/ambulance-dispatch-repositioning
 cd ambulance-dispatch-repositioning
 pip install -r requirements.txt
-python -m pytest tests -q          # 66 tests, ~8 s
+python -m pytest tests -q          # 70 tests, ~10 s
 ```
 
 Dependencies: `numpy`, `networkx`, `scipy`, `matplotlib`, `pandas`, `torch` (CPU),
