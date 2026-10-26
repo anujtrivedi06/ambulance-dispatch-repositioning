@@ -48,12 +48,11 @@ demand-weighted distance to the nearest free unit; four per-zone coverage values
 bias term. The post-decision state is a deterministic function of (state, action), so the
 agent ranks every candidate action with one forward pass each, with no sampling.
 
-The feature set was cut from twelve after diagnosis on collected data. Three features were
-exactly redundant (the design matrix came back rank 9 of 12) and the four per-zone
-coverages were collinear at $0.97$ and $1.00$, leaving their weights unidentified. Ridge
-regression hid this: value \emph{prediction} stayed accurate because the collinear
-directions cancel in-distribution, while the greedy policy degraded, because an action
-moves along exactly the direction the data could not identify.
+The feature set was cut from twelve after diagnosis on collected data: three features were
+exactly redundant (design matrix rank 9 of 12) and the per-zone coverages were collinear
+at $0.97$ and $1.00$. Ridge hid this---value \emph{prediction} stayed accurate, because
+collinear directions cancel in-distribution, while the greedy policy degraded, because an
+action moves along exactly the unidentified direction.
 
 \section{Action Space ($\mathcal{A}$)}
 The action space is \textbf{discrete}. At a repositioning epoch the agent chooses one of
@@ -110,10 +109,9 @@ a target network frozen once per round. The network is a $2\times64$ MLP (4{,}99
 parameters) trained with Adam and weight decay. Collection stores every candidate action
 considered, since the target needs a max over actions the behaviour policy declined.
 
-Two further value-based RL methods were implemented for comparison: \textbf{LSTD} and
-\textbf{LSPI} over the same features. A cross-entropy policy search over the identical
-linear class was added as a control: it shares the hypothesis class exactly, so any gap
-between it and LSTD is attributable to the training objective rather than the
+\textbf{LSTD} and \textbf{LSPI} were implemented over the same features for comparison,
+plus a cross-entropy policy search over the identical linear class as a control: it shares
+the hypothesis class exactly, so any gap between them is the training objective, not the
 representation.
 
 \section{Baseline Comparisons}
@@ -139,43 +137,52 @@ MEXCLP stations           & 0.860 & 5.38  & 0.798 \\
 DMEXCLP (strong baseline) & 0.872 & 5.26  & 0.822 \\
 Linear ADP, binary reward & 0.809 & 5.78  & 0.573 \\
 Deep NFQ, binary reward   & 0.724 & 6.60  & 0.384 \\
-\textbf{RL agent (NFQ, shaped)} & \textbf{0.874} & \textbf{5.24} & 0.818 \\
+\textbf{RL agent (NFQ, shaped)} & \textbf{0.874} & \textbf{5.22} & 0.822 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Results}
-The agent trains for 8 rounds; the checkpoint is chosen on a validation block of episodes
-disjoint from both training and test seeds, and all figures below are on the untouched
-test block.
+\textbf{Five independently seeded agents} were trained for 8 rounds each. Each selects its
+checkpoint on a validation block disjoint from both training and test episodes; the
+submitted agent is the one with the best \emph{validation} score, never the best test
+score. Reporting a single run would not be a result: initialisation and the
+$\varepsilon$-greedy data a run happens to collect can move the outcome by more than the
+effect being claimed.
 
-The trained agent with the shaped reward \textbf{reaches parity with DMEXCLP}: coverage
-$0.874$ against $0.872$, a difference of $+0.002$ that is not significant ($p = 0.32$),
-with mean response, p90 and worst-zone coverage likewise indistinguishable. Against the
-untrained floor it is $+0.052$ coverage ($p = 2\times10^{-17}$), so the learning is doing
-real work---it lands where a strong domain heuristic already is. With the binary reward
-the same architecture collapses to $0.724$ and worst-zone coverage falls to $0.384$:
-maximising a count of indicators is maximised by serving dense zones and abandoning sparse
-ones.
+Across the five seeds, test coverage is \textbf{0.875 $\pm$ 0.002} against the heuristic's
+$0.872$, and \textbf{all five seeds beat it}. The margin is small and consistent rather
+than large: the submitted agent scores $0.874$ coverage ($+0.001$, $p = 0.47$, not
+significant) but is \textbf{significantly better on mean response time}---$5.22$ min
+against $5.26$, a difference of $-0.038$ min ($p = 0.002$). Against the untrained floor it
+is $+0.052$ coverage ($p = 2\times10^{-17}$). With the binary reward the same architecture
+collapses to $0.724$ and worst-zone coverage falls to $0.384$: maximising a count of
+indicators is maximised by serving dense zones and abandoning sparse ones.
 
 The learning curve is flat. Validation coverage oscillates within a band of $0.019$ across
-eight rounds with no upward trend. Value-prediction error is dominated by exogenous call
-variation, so the directions an action can move the state contribute almost nothing to the
-objective being minimised, and the fit has little incentive to rank actions correctly. The
-cross-entropy control confirms the reading.
+eight rounds with no upward trend---the agent reaches heuristic parity early and stays
+there. Value-prediction error is dominated by exogenous call variation, so the directions
+an action can move the state contribute almost nothing to the objective being minimised,
+and the fit has little incentive to rank actions correctly. The cross-entropy control
+confirms the reading.
 
 \textbf{Generalisation is partial, and this is the agent's clearest weakness.} On a demand
-profile with relocated hotspots, never seen in training, the agent holds its absolute
-performance ($0.873$) and stays $+0.063$ above the untrained floor. But the heuristic
-\emph{improves} on that easier profile to $0.887$ and the agent does not follow: parity
-becomes a significant deficit of $-0.014$ coverage ($p = 4\times10^{-7}$) and $-0.033$
-worst-zone coverage. The learned value function is tuned to the demand distribution it
-saw; the heuristic recomputes coverage from the live demand model and adapts for free.
+profile with relocated hotspots, never seen in training, the agents hold their absolute
+performance ($0.879 \pm 0.005$ across seeds) and stay far above the untrained floor. But
+the heuristic \emph{improves} on that easier profile, to $0.887$, and the agents do not
+follow: the advantage held on the training distribution is given up. The learned value
+function is tuned to the demand it saw, while the heuristic recomputes coverage from the
+live demand model and adapts for free.
 
-\textbf{How much was ever available.} Choosing well is worth $+0.091$ coverage over random
-parking, but the best and second-best stations differ by only about 10\% of a single
-marginal gain. Sweeping load (4--6 calls/h) and station count (4--8) leaves this
-unchanged, so the ceiling is a property of the problem, not of the configuration tested.
+\textbf{How much was ever available, and why.} Choosing well is worth $+0.091$ coverage
+over random parking, but the best and second-best stations differ by only about 10\% of a
+single marginal gain, and sweeping load (4--6 calls/h) and station count (4--8) leaves
+that unchanged. The cause is the environment's geometry: the median trip between any two
+nodes is 7.5 minutes against an 8-minute target, so one station already reaches over half
+the demand and a second adds little the first did not cover. Tightening the target to 5
+minutes raises the best-versus-second-best gap from 7\% to 39\%. \textbf{The negative
+results in this project should therefore be read as holding at a generous response
+target}; a tighter one is where search or learning has the most room to prove itself.
 
 \begin{figure}[t]
 \centering
@@ -192,17 +199,20 @@ coverage.}
 \end{figure}
 
 \section{Conclusions}
-Four findings, each measured rather than asserted. \textbf{(i)} Reward design dominated
+Five findings, each measured rather than asserted. \textbf{(i)} Reward design dominated
 model class: binary versus shaped reward moved coverage by $0.148$, more than any
 architectural choice tested. \textbf{(ii)} Value-prediction accuracy is not policy
 quality; a control sharing the hypothesis class exactly, but optimising the policy
 directly, performed better than the fitted value function. \textbf{(iii)} The learned
-policy reaches parity with a strong domain heuristic on the distribution it trained on,
-but gives that parity up under demand shift. \textbf{(iv)} Reporting that honestly---with
-confidence intervals, disjoint validation and test seeds, and two agreeing significance
-tests---is more useful than a tuned victory.
+policy edges past a strong domain heuristic on the distribution it trained on---all five
+seeds beat it---but gives that advantage up under demand shift. \textbf{(iv)} Reporting
+that honestly---with confidence intervals, disjoint validation and test seeds, multiple
+training seeds, and two agreeing significance tests---is more useful than a tuned victory.
+\textbf{(v)} The ceiling on all of this is set by the environment: an 8-minute target on
+this city leaves the candidate actions nearly interchangeable, and tightening it is the
+experiment most likely to change the conclusions.
 
-The repository contains the full environment, all agents, the trained network, 70 tests,
+The repository contains the full environment, all agents, the trained network, 72 tests,
 and scripts reproducing every figure and table here.
 
 \end{document}

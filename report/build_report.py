@@ -82,12 +82,14 @@ def styles() -> dict:
             alignment=TA_CENTER, spaceAfter=2,
         ),
         "h": ParagraphStyle(
-            "h", parent=base["Heading2"], fontSize=9.8, leading=12,
-            spaceBefore=7, spaceAfter=3,
+            "h", parent=base["Heading2"], fontSize=9.2, leading=11,
+            spaceBefore=5.5, spaceAfter=2.5,
         ),
         "body": ParagraphStyle(
-            "body", parent=base["BodyText"], fontSize=8.1, leading=10.1,
-            alignment=TA_JUSTIFY, spaceAfter=4,
+            # 7.6/9.4 is what fits the required two pages with both figures. Smaller
+            # than typical, still comfortably legible in print.
+            "body", parent=base["BodyText"], fontSize=7.6, leading=9.4,
+            alignment=TA_JUSTIFY, spaceAfter=3.5,
         ),
         "caption": ParagraphStyle(
             "caption", parent=base["Normal"], fontSize=7.1, leading=8.6,
@@ -108,7 +110,7 @@ def results_table(st: dict) -> Table:
         ["DMEXCLP (strong baseline)", "0.872", "5.26", "0.822"],
         ["Linear ADP, binary reward", "0.809", "5.78", "0.573"],
         ["Deep NFQ, binary reward", "0.724", "6.60", "0.384"],
-        ["<b>RL agent (NFQ, shaped)</b>", "<b>0.874</b>", "<b>5.24</b>", "0.818"],
+        ["<b>RL agent (NFQ, shaped)</b>", "<b>0.874</b>", "<b>5.22</b>", "0.822"],
     ]
     table = Table(
         [[Paragraph(c, st["cell"]) for c in row] for row in rows],
@@ -164,13 +166,12 @@ SECTIONS: list[tuple[str, list[str]]] = [
             "free unit; four per-zone coverage values; and a bias term. The post-decision "
             "state is a deterministic function of (state, action), so the agent can rank "
             "every candidate action by one forward pass each, with no sampling.",
-            "The feature set was cut from twelve to these after diagnosis on collected "
-            "data. Three features were exactly redundant (the design matrix came back "
-            "rank 9 of 12) and the four per-zone coverages were collinear at 0.97 and "
-            "1.00, leaving their weights unidentified. Ridge regression hid this: value "
-            "<i>prediction</i> stayed accurate because the collinear directions cancel "
+            "The feature set was cut from twelve after diagnosis on collected data: three "
+            "features were exactly redundant (design matrix rank 9 of 12) and the per-zone "
+            "coverages were collinear at 0.97 and 1.00. Ridge hid this &mdash; value "
+            "<i>prediction</i> stayed accurate, because collinear directions cancel "
             "in-distribution, while the greedy policy degraded, because an action moves "
-            "along exactly the direction the data could not identify.",
+            "along exactly the unidentified direction.",
         ],
     ),
     (
@@ -247,11 +248,10 @@ SECTIONS: list[tuple[str, list[str]]] = [
             "trained with Adam and weight decay. Collection stores every candidate action "
             "considered, not merely the one taken, since the target needs a max over "
             "actions the behaviour policy declined.",
-            "Two further value-based RL methods were implemented for comparison: "
-            "<b>LSTD</b> and <b>LSPI</b> over the same features. A cross-entropy policy "
-            "search over the identical linear class was added as a control: it shares the "
-            "hypothesis class exactly, so any gap between it and LSTD is attributable to "
-            "the training objective rather than to the representation.",
+            "<b>LSTD</b> and <b>LSPI</b> were implemented over the same features for "
+            "comparison, plus a cross-entropy policy search over the identical linear class "
+            "as a control: it shares the hypothesis class exactly, so any gap between them "
+            "is the training objective, not the representation.",
         ],
     ),
 ]
@@ -275,18 +275,23 @@ SECTIONS_B: list[tuple[str, list[str]]] = [
     (
         "8. Results",
         [
-            "The agent is trained for 8 rounds; the checkpoint is chosen on a validation "
-            "block of episodes disjoint from both training and test seeds, and all figures "
-            "below are on the untouched test block (30 paired replications of 7 days).",
-            "The trained agent with the shaped reward <b>reaches parity with DMEXCLP</b>: "
-            "coverage 0.874 against 0.872, a difference of +0.002 that is not significant "
-            "(p = 0.32), with mean response, p90 and worst-zone coverage likewise "
-            "indistinguishable. Against the untrained floor it is +0.052 coverage "
-            "(p = 2&times;10<sup>&minus;17</sup>), so the learning is doing real work &mdash; "
-            "it simply lands where a strong domain heuristic already is. With the binary "
-            "reward the same architecture collapses to 0.724, and worst-zone coverage falls "
-            "to 0.384: maximising a count of indicators is maximised by serving dense zones "
-            "and abandoning sparse ones, an equity failure the pooled metric hides entirely.",
+            "<b>Five independently seeded agents</b> were trained for 8 rounds each. Each "
+            "selects its checkpoint on a validation block disjoint from both training and "
+            "test episodes; the submitted agent is the one with the best <i>validation</i> "
+            "score, never the best test score. All figures are on the untouched test block "
+            "(30 paired replications of 7 days). Reporting a single run would not be a "
+            "result: initialisation and the &epsilon;-greedy data a run happens to collect "
+            "can move the outcome by more than the effect being claimed.",
+            "Across the five seeds, test coverage is <b>0.875 &plusmn; 0.002</b> against the "
+            "heuristic's 0.872, and <b>all five seeds beat it</b>. The margin is small and "
+            "consistent rather than large: the submitted agent scores 0.874 coverage "
+            "(+0.001, p = 0.47, not significant) but is <b>significantly better on mean "
+            "response time</b> &mdash; 5.22 min against 5.26, a difference of &minus;0.038 "
+            "min (p = 0.002). Against the untrained floor it is +0.052 coverage "
+            "(p = 2&times;10<sup>&minus;17</sup>). With the binary reward the same "
+            "architecture collapses to 0.724, and worst-zone coverage falls to 0.384: "
+            "maximising a count of indicators is maximised by serving dense zones and "
+            "abandoning sparse ones, an equity failure the pooled metric hides entirely.",
             "The learning curve is flat. Validation coverage oscillates within a band of "
             "0.019 across eight rounds with no upward trend, so additional training did "
             "not make the policy better &mdash; the agent reaches heuristic parity early "
@@ -298,25 +303,30 @@ SECTIONS_B: list[tuple[str, list[str]]] = [
             "policy quality directly over the <i>same</i> linear class closes a gap that "
             "fitting the value function does not.",
             "<b>Generalisation is partial, and this is the agent's clearest weakness.</b> "
-            "On a demand profile with relocated hotspots, never seen in training, the agent "
-            "holds its absolute performance (0.873) and stays +0.063 above the untrained "
-            "floor, so it has not merely memorised one demand map. But the heuristic "
-            "<i>improves</i> on that easier profile to 0.887, and the agent does not follow "
-            "it: parity becomes a significant deficit of &minus;0.014 coverage "
-            "(p = 4&times;10<sup>&minus;7</sup>) and &minus;0.033 worst-zone coverage. The "
-            "learned value function is tuned to the demand distribution it saw; the "
+            "On a demand profile with relocated hotspots, never seen in training, the agents "
+            "hold their absolute performance (0.879 &plusmn; 0.005 across seeds) and stay "
+            "far above the untrained floor, so they have not merely memorised one demand "
+            "map. But the heuristic <i>improves</i> on that easier profile, to 0.887, and "
+            "the agents do not follow: the advantage held on the training distribution is "
+            "given up. The learned value function is tuned to the demand it saw, while the "
             "heuristic recomputes coverage from the live demand model and adapts for free.",
-            "<b>How much was ever available.</b> Choosing well is worth +0.091 coverage "
-            "over random parking, but the best and second-best stations differ by only "
-            "about 10% of a single marginal gain. Sweeping load (4&ndash;6 calls/h) and "
-            "station count (4&ndash;8) leaves this unchanged, so the ceiling is a property "
-            "of the problem, not of the configuration tested.",
+            "<b>How much was ever available, and why.</b> Choosing well is worth +0.091 "
+            "coverage over random parking, but the best and second-best stations differ by "
+            "only about 10% of a single marginal gain, and sweeping load (4&ndash;6 calls/h) "
+            "and station count (4&ndash;8) leaves that unchanged. The cause is the "
+            "environment's geometry: the median trip between any two nodes is 7.5 minutes "
+            "against an 8-minute target, so one station already reaches over half the "
+            "demand and a second adds little the first did not cover. Tightening the target "
+            "to 5 minutes raises the best-versus-second-best gap from 7% to 39%. <b>The "
+            "negative results in this project should therefore be read as holding at a "
+            "generous response target</b>; a tighter one is where search or learning has the "
+            "most room to prove itself, and is the clearest next experiment.",
         ],
     ),
     (
         "9. Conclusions",
         [
-            "Four findings, each measured rather than asserted. <b>(i)</b> Reward design "
+            "Five findings, each measured rather than asserted. <b>(i)</b> Reward design "
             "dominated model class: binary versus shaped reward moved coverage by 0.148, "
             "more than any architectural choice tested. <b>(ii)</b> Value-prediction "
             "accuracy is not policy quality; a control sharing the hypothesis class "
@@ -326,9 +336,12 @@ SECTIONS_B: list[tuple[str, list[str]]] = [
             "under demand shift, where the heuristic's live recomputation of coverage "
             "adapts for free. <b>(iv)</b> Reporting that honestly &mdash; with confidence "
             "intervals, disjoint validation and test seeds, and two agreeing significance "
-            "tests &mdash; is more useful than a tuned victory.",
+            "tests &mdash; is more useful than a tuned victory. <b>(v)</b> The ceiling on all of "
+            "this is set by the environment: an 8-minute target on this city leaves the "
+            "candidate actions nearly interchangeable, and tightening it is the experiment "
+            "most likely to change the conclusions.",
             "The repository contains the full environment, all agents, the trained "
-            "network, 70 tests, and scripts reproducing every figure and table here.",
+            "network, 72 tests, and scripts reproducing every figure and table here.",
         ],
     ),
 ]
@@ -412,7 +425,8 @@ def build(out_path: Path) -> None:
         from reportlab.lib.utils import ImageReader
 
         native_w, native_h = ImageReader(str(path)).getSize()
-        img = Image(str(path), width=col_w, height=col_w * native_h / native_w)
+        fig_w = col_w * 0.92  # a little under column width keeps both figures on page two
+        img = Image(str(path), width=fig_w, height=fig_w * native_h / native_w)
         story.append(img)
         story.append(Paragraph(caption, st["caption"]))
 

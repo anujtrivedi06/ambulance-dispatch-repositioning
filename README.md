@@ -33,7 +33,7 @@ Requires Python 3.10+ (developed on 3.12). CPU only — no GPU needed.
 git clone https://github.com/anujtrivedi06/ambulance-dispatch-repositioning
 cd ambulance-dispatch-repositioning
 pip install -r requirements.txt
-python -m pytest tests -q          # 70 tests, ~10 s
+python -m pytest tests -q          # 72 tests, ~10 s
 ```
 
 Dependencies: `numpy`, `networkx`, `scipy`, `matplotlib`, `pandas`, `torch` (CPU),
@@ -42,15 +42,16 @@ Dependencies: `numpy`, `networkx`, `scipy`, `matplotlib`, `pandas`, `torch` (CPU
 ## Train and evaluate the RL agent
 
 ```bash
-python scripts/train_agent.py --rounds 8          # trains, saves models/nfq_agent.pt
+python scripts/train_multiseed.py --seeds 5 --rounds 8   # trains, saves models/nfq_agent.pt
 python scripts/plot_learning_curve.py results/learning_curve.csv --baseline 0.8446
+python scripts/plot_city.py                              # environment + learned behaviour
 ```
 
-`train_agent.py` trains the agent, selects its checkpoint on a **validation** block of
-episodes, scores it on a disjoint **test** block, tests generalisation to an unseen demand
-profile, and writes the trained weights plus a learning curve. The saved checkpoint stores
-its feature layout alongside the weights, so a mismatched load fails loudly instead of
-silently choosing badly.
+Each seed selects its checkpoint on a **validation** block of episodes, and is scored on a
+disjoint **test** block; the saved agent is the best by validation score, never by test
+score. The checkpoint stores its feature layout alongside the weights, so a mismatched load
+fails loudly instead of silently choosing badly. `scripts/train_agent.py` runs a single
+seed with a learning curve and a generalisation test.
 
 ## Results: the RL agent
 
@@ -60,21 +61,48 @@ validation:
 | policy | coverage (≤8 min) | mean response | worst-zone |
 |---|---|---|---|
 | Random repositioning (untrained floor) | 0.357 | 10.09 min | 0.282 |
-| DMEXCLP (strong domain heuristic) | 0.872 | 5.26 min | **0.822** |
-| **RL agent (NFQ, shaped reward)** | **0.874** | **5.24 min** | 0.818 |
+| DMEXCLP (strong domain heuristic) | 0.872 | 5.26 min | 0.822 |
+| **RL agent (NFQ, shaped reward)** | **0.874** | **5.22 min** | 0.822 |
 | RL agent (NFQ, binary reward) | 0.724 | 6.60 min | 0.384 |
 
-The agent **reaches parity with the heuristic** (+0.002 coverage, p = 0.32 — not
-significant) and beats the untrained floor by +0.052 (p = 2e-17). The binary reward
-collapses the same architecture to 0.724, and its worst-zone coverage to 0.384.
+Across **5 independently seeded agents**, test coverage is **0.875 ± 0.002** against the
+heuristic's 0.872, and **all five beat it**. The margin is small but consistent: the
+submitted agent is +0.001 on coverage (p = 0.47, not significant) and **significantly
+better on mean response** (−0.038 min, p = 0.002). Against the untrained floor it is +0.052
+(p = 2e-17). The binary reward collapses the same architecture to 0.724 and its worst-zone
+coverage to 0.384.
 
 **Generalisation is partial**, and it is the agent's clearest weakness. On a demand profile
-with relocated hotspots it holds absolute performance (0.873, still +0.063 over the floor),
-but the heuristic *improves* to 0.887 on that easier profile and the agent does not follow:
-parity becomes a significant −0.014 deficit (p = 4e-7). The learned value function is tuned
-to the demand distribution it saw; the heuristic recomputes coverage live and adapts free.
+with relocated hotspots the agents hold absolute performance (0.879 ± 0.005) but the
+heuristic *improves* to 0.887 and they do not follow — the training-distribution advantage
+is given up. The learned value function is tuned to the demand it saw; the heuristic
+recomputes coverage live and adapts for free.
 
 ![Learning curve](results/figures/learning_curve.png)
+
+### What the agent actually learned
+
+![City and policy behaviour](results/figures/city_and_policy.png)
+
+The agent and the heuristic do not merely score alike — they largely *behave* alike, with
+only ~11% total variation in how they distribute freed units across stations.
+
+### Why the ceiling is where it is
+
+With 1.5-minute blocks on an 8×8 grid, the median trip between any two nodes is 7.5 min
+against an 8-minute target, so **a single station already reaches over half the demand**.
+That is why candidate stations are near-equivalent, and why search, equity weighting and
+learning all have so little to win:
+
+| response target | node pairs in reach | best vs 2nd-best station |
+|---|---|---|
+| 8.0 min (used throughout) | 54.5% | 7.2% |
+| 6.5 min | 41.0% | 9.3% |
+| 5.0 min | 27.8% | **39.3%** |
+
+Reproduce with `python scripts/diagnose_target.py`. **The negative results here should be
+read as holding at a generous response target** — a tighter one is where search or learning
+has the most room to prove itself, and is the clearest next experiment.
 
 ## Reproducing the analysis
 
