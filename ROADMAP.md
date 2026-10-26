@@ -114,15 +114,39 @@ function, which is exactly what ADP and RL do.
 
 ## Phase 4 — Learning
 
-- [ ] Feature-based **approximate value function** (ADP): features = per-zone coverage
-      deficit, busy fraction, time of day; fit by least-squares temporal differences
-- [ ] **Deep RL**: Gymnasium wrapper over the simulator, masked-action DQN or PPO on a
-      compact tensor state encoding
-- [ ] Learning curves, ablation on reward shaping (response time vs. target indicator)
+- [x] Feature-based **approximate value function** (ADP) over post-decision states, fit by
+      least-squares temporal differences; plus LSPI on top of it
+- [x] **Direct policy search** (cross-entropy) over the *same* linear class, as a control
+      that isolates the objective from the representation
+- [x] **Deep RL**: neural fitted value iteration over post-decision states, richer features
+      (no Gymnasium needed — the simulator is already the environment)
+- [x] Ablation on reward shaping (continuous response time vs. the target indicator)
 - [ ] Generalisation test: train on one demand profile, evaluate on a shifted one
 
-**Deliverable:** does learning beat the DMEXCLP heuristic? An honest negative result here is
-a legitimate and defensible finding — report it either way.
+**Deliverable:** `results/figures/phase4_reward.png`. The answer to "does learning beat the
+heuristic" is **no — the best learned policy ties it**, and the interesting part is why.
+
+1. **The hypothesis class contains the heuristic.** Greedy on the expected-covered-demand
+   feature is algebraically DMEXCLP's rule, and scores identically to nine decimal places
+   (pinned by a test). A hand-set "coverage − distance" weighting beats it. So any learner
+   that loses here is losing on the training signal, not the features.
+2. **Every value-fitting method loses anyway.** LSTD −0.063 coverage, NFQ −0.148, LSPI a
+   wash. All three fit value *prediction*, and the directions an action can move the state
+   contribute almost nothing to prediction error, which exogenous call variation dominates.
+   Nothing in the objective rewards ranking actions correctly.
+3. **Capacity made it worse.** The network beats the linear model on prediction loss and
+   loses badly on policy quality — it fits the exogenous noise faster.
+4. **Direct policy search ties the heuristic** using the same three weights, confirming (1)
+   and (2): change the objective from prediction to policy quality and the gap closes.
+   It does not *beat* the heuristic, and its training score (0.907) overstates its test
+   score (0.871) — selection bias from picking the best of 20 noisy candidates.
+5. **The reward dominated everything.** Binary to continuous is worth +0.052 coverage
+   (linear) and +0.148 (network), larger than any architectural choice tested. The binary
+   reward also collapses worst-zone coverage from 0.822 to 0.384: maximising a count of
+   indicators is maximised by serving dense zones and abandoning sparse ones.
+
+Phases 2, 3 and 4 converge on one lesson from three directions — the objective you write
+down matters more than the machinery you point at it.
 
 ## Phase 5 — Analysis & extensions (pick 2)
 
@@ -157,6 +181,11 @@ a legitimate and defensible finding — report it either way.
 | 2026-10-26 | MCTS is open-loop (nodes keyed by action sequence, not state) | Each iteration samples its own future, so a state-keyed node would never see a second visit |
 | 2026-10-26 | Plot against simulated futures, not the budget parameter | Rollout spends candidates x sims per decision and MCTS spends sims; the parameter would flatter MCTS by the shortlist size |
 | 2026-10-26 | Report the negative Phase 3 result rather than tuning for a win | The null is tight, mechanistically explained, and it is what motivates Phase 4 |
+| 2026-10-26 | Value function over post-decision states, not Q over (state, action) | The post-decision state is deterministic given (s, a), so ranking actions needs one cheap vector each and no per-station output head that would not transfer between cities |
+| 2026-10-26 | Feature set cut from 12 to 7 after checking the design matrix | Three features were exactly redundant and four more were collinear at 0.97-1.00; ridge hid it, but the greedy policy moves along exactly the unidentified directions |
+| 2026-10-26 | CEM over the same linear class kept as a control, not as a method | It is the only way to separate "the features are wrong" from "fitting value does not rank actions"; without it the ADP result is uninterpretable |
+| 2026-10-26 | Deep RL written directly against the simulator, no Gymnasium | The simulator already is the environment; a wrapper would add a dependency and an adapter layer for nothing |
+| 2026-10-26 | Deep RL swept over rewards and buffers before being reported | One hyperparameter setting said "deep RL fails"; the sweep showed the reward was doing the work and the architecture was not |
 | 2026-10-25 | Greedy + swap local search for p-median/MEXCLP, not an ILP | Lands on or near the optimum at these graph sizes with no solver dependency |
 | 2026-10-25 | MEXCLP allocates units with multiplicity, stations stay distinct | Doubling up on a hotspot is the model's whole point; the simulator takes an explicit home-base allocation so it can be reproduced |
 | 2026-10-25 | Report paired t *and* Wilcoxon, require both | Coverage differences are near-symmetric but response-time differences are not; a result only one test supports is not stated as a result |

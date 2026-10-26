@@ -34,6 +34,7 @@ pip install -r requirements.txt
 python scripts/run_baseline.py --days 7 --reps 10
 python scripts/run_phase2.py --days 7 --reps 30
 python scripts/run_phase3.py --methods rollout --budgets 1,4,16
+python scripts/run_phase4.py --reps 30 --days 7
 python -m pytest tests -q
 ```
 
@@ -105,13 +106,64 @@ On this problem, reward design mattered more than search depth.
 Reproduce with `python scripts/run_phase3.py --methods rollout --out results/phase3_rollout.csv`
 (and `--methods mcts`), then `python scripts/plot_phase3.py results/phase3_*.csv`.
 
+### Phase 4: learning matched the heuristic, and the reward decided everything
+
+Six learned policies, one feature set, one simulator. 30 paired replications x 7 days,
+trained on disjoint call-stream seeds:
+
+| policy | coverage | mean response | worst-zone | vs DMEXCLP |
+|---|---|---|---|---|
+| DMEXCLP heuristic | 0.872 | 5.26 min | 0.822 | — |
+| ADP-LSTD, binary reward | 0.809 | 5.78 min | 0.573 | **−0.063** coverage |
+| ADP-LSTD, continuous reward | 0.861 | 5.50 min | 0.804 | −0.011 |
+| LSPI | 0.875 | **5.22 min** | 0.798 | +0.003 (n.s.) |
+| CEM direct policy search | 0.871 | 5.30 min | 0.817 | −0.001 (n.s.) |
+| Deep NFQ, binary reward | 0.724 | 6.60 min | 0.384 | **−0.148** coverage |
+| Deep NFQ, continuous reward | 0.872 | 5.26 min | 0.819 | +0.000 (n.s.) |
+
+**No learned policy beat the heuristic.** The best of them — a neural value network on a
+continuous reward — ties it on every metric to three decimal places (p = 0.91, 0.93, 0.52).
+LSPI buys a small but real mean-response win (−0.047 min, p = 0.004) and pays for it in
+equity (−0.024 worst-zone, p = 0.003).
+
+The reason is diagnosable rather than mysterious. Greedy on the expected-covered-demand
+feature is *algebraically identical* to DMEXCLP, and scores identically to nine decimal
+places — so the hypothesis class provably contains the heuristic, and a hand-set
+"coverage − distance" weighting beats it. Every value-fitting method nonetheless lands
+below: **LSTD, LSPI and NFQ all fit value prediction, and the directions an action can move
+the state contribute almost nothing to prediction error**, which is dominated by exogenous
+call variation. The fit has no incentive to rank actions correctly, so it doesn't. Adding
+capacity made this worse, not better — the network fits the exogenous noise faster.
+
+**The training signal mattered far more than the model.** Switching the reward from the
+binary 8-minute indicator to continuous response time is worth +0.052 coverage for the
+linear model and +0.148 for the network — larger than any architectural choice in the
+table. This is Phase 3's finding in a different algorithm, which makes it the spine of the
+project: a reward that cannot tell a 3-minute response from a 7-minute one starves
+learning of gradient.
+
+The binary reward's **equity damage** is worse than its coverage damage: worst-zone
+coverage collapses from 0.822 to 0.384 (p < 1e-28). Maximising a count of indicators is
+maximised by serving dense zones and abandoning the sparse one, which is exactly what the
+agent learned to do. Phases 2, 3 and 4 all converge on the same lesson from different
+directions.
+
+![Reward ablation](results/figures/phase4_reward.png)
+
+Reproduce with `python scripts/run_phase4.py --reps 30 --days 7 --out-csv results/phase4.csv`,
+then `python scripts/plot_phase4.py results/phase4.csv`.
+
 ## Layout
 
 ```
 src/ambulance/
   city.py            road graph, travel times, demand model, call generation
-  sim.py             discrete-event simulator and ambulance state machine
+  sim.py             discrete-event simulator, ambulance state machine, forking
   location.py        static station placement: p-median and MEXCLP
+  features.py        post-decision state features for learning
+  adp.py             LSTD / LSPI value-function fitting
+  policy_search.py   cross-entropy search over the same linear class
+  deeprl.py          neural fitted value iteration
   metrics.py         response-time, coverage and equity metrics
   experiment.py      paired, seeded replications
   stats.py           paired t + Wilcoxon significance testing
@@ -120,9 +172,12 @@ src/ambulance/
     coverage.py      B3 DMEXCLP dynamic repositioning
     rollout.py       one-step lookahead with Monte Carlo rollout
     mcts.py          open-loop MCTS over repositioning sequences
+    adp.py           greedy over a learned value function
 scripts/run_baseline.py   Phase 1 reference policies
 scripts/run_phase2.py     station optimisation + dynamic repositioning
 scripts/run_phase3.py     online search, budget sweep
+scripts/run_phase4.py     learned policies and the reward ablation
 scripts/plot_phase3.py    the anytime curve
+scripts/plot_phase4.py    the reward ablation
 tests/
 ```

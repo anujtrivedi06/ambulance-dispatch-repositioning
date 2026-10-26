@@ -1,0 +1,8 @@
+policy,family,reward,coverage,mean_response,p90_response,worst_zone_coverage,coverage_sd,mean_response_sd,p90_response_sd,worst_zone_coverage_sd
+dmexclp (base),dmexclp,base,0.87203,5.26228,8.80640,0.82222,0.02357,0.31790,0.76605,0.04042
+adp-lstd (coverage),adp-lstd,coverage,0.80905,5.78439,10.30518,0.57338,0.02216,0.33197,0.80039,0.03312
+adp-lstd (response),adp-lstd,response,0.86062,5.49647,8.96826,0.80397,0.02210,0.30949,0.64187,0.03121
+lspi,lspi,,0.87511,5.21516,8.74476,0.79833,0.02176,0.31989,0.74785,0.03532
+cem,cem,,0.87118,5.29666,8.77049,0.81731,0.01905,0.29052,0.64585,0.03388
+deep-nfq (coverage),deep-nfq,coverage,0.72401,6.59571,11.92999,0.38388,0.02089,0.30018,0.71355,0.03545
+deep-nfq (response),deep-nfq,response,0.87232,5.26361,8.78534,0.81856,0.02118,0.29735,0.71810,0.03080
