@@ -170,9 +170,50 @@ priced; the other turns out not to exist.
 4. **Which is Phase 3's finding from the other side.** The candidate stations differ by
    ~0.005 coverage against ~0.035 of noise, so search cannot resolve them (Phase 3) *and*
    equity cannot be traded against efficiency (Phase 5). Same cause, different symptom.
-   The honest caveat: this is a statement about 4 stations and 6 units at 65% utilisation,
-   not about the problem in general. A finer station set would give the lever something
-   to pull.
+   This caveat has since been tested — see the regime sweep below — and it did not hold up
+   the way it was written. **Correction:** this roadmap previously predicted that "a finer
+   station set would give the lever something to pull". The opposite is true. Going from 4
+   to 8 stations *shrinks* the gap between the best and second-best candidate from 10.0% to
+   6.6% of the best gain, and makes rollout significantly worse. More options mean more
+   near-equivalent options.
+
+## Regime sweep — is any of this an artefact of one configuration?
+
+Phases 3, 4 and 5 all concluded that sophisticated methods do not pay here, and all three
+rested on the unverified claim above. Two one-dimensional sweeps through the centre point
+turn it into a measurement, with two quantities kept deliberately apart:
+
+- **Headroom** — DMEXCLP minus random parking, dispatch held fixed: what the repositioning
+  choice is worth at all.
+- **Best vs second-best gain** — what a search method actually has to resolve, since it
+  never chooses between the best option and a random one.
+
+| regime | queued | headroom | best vs 2nd | rollout Δ | equity Δ |
+|---|---|---|---|---|---|
+| 4/h, 4 stations | 0.062 | +0.091 | 10.0% | −0.008 | −0.007 |
+| 5/h, 4 stations | 0.135 | +0.061 | 10.2% | +0.001 | −0.005 |
+| 6/h, 4 stations | 0.283 | +0.039 | 10.5% | −0.005 | −0.012 |
+| 4/h, 6 stations | 0.064 | +0.071 | 7.0% | −0.012 | −0.003 |
+| 4/h, 8 stations | 0.067 | +0.078 | **6.6%** | **−0.016*** | −0.007 |
+
+- [x] **The negatives are not a configuration artefact.** Rollout fails to beat DMEXCLP in
+      every regime tested, across a 1.5x range of load and a 2x range of station count. The
+      equity weight has no significant effect anywhere.
+- [x] **Headroom is large but falls with load** (+0.091 at 65% utilisation to +0.039 near
+      saturation). Repositioning matters *less* when the system is busy, because units are
+      rarely idle and where they would have waited stops mattering.
+- [x] **Repositioning matters; choosing between the top two does not.** Headroom of +0.091
+      says the choice is worth nine coverage points, while the top two candidates differ by
+      10% of one gain. Both are true, and only the second governs whether search can pay —
+      which is why reporting headroom alone would tell the opposite story.
+- [x] **A finer action space makes search worse, not better.** At 8 stations rollout is
+      significantly *harmful* (−0.016, p = 0.008): more near-equivalent candidates mean more
+      chances for a noisy estimate to pick a worse one. Exactly what Phase 3's variance
+      argument predicts, now observed rather than inferred.
+
+**Power caveat:** this sweep is 8 replications x 3 days, far less than the 30 x 7 behind the
+phase results. Its null results have confidence intervals around ±0.02, so they exclude
+large effects, not small ones. The one significant finding is a harm, not a benefit.
 - [ ] **Fleet sizing**: marginal value of the Nth ambulance
 - [ ] **Real city graph** via OSMnx (Jodhpur) with time-of-day traffic multipliers
 - [ ] **Robustness**: performance under a mass-casualty demand spike

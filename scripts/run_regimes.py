@@ -225,6 +225,9 @@ def main() -> None:
                     **{m: agg[name][m] for m in METRICS},
                     "coverage_sd": column(per_rep[name], "coverage").std(ddof=1),
                     "delta_vs_dmexclp": 0.0 if name == "dmexclp" else deltas[name].mean_diff,
+                    "delta_ci_low": "" if name == "dmexclp" else deltas[name].ci_low,
+                    "delta_ci_high": "" if name == "dmexclp" else deltas[name].ci_high,
+                    "delta_p": "" if name == "dmexclp" else deltas[name].t_p,
                     "delta_significant": ""
                     if name == "dmexclp"
                     else int(deltas[name].significant),

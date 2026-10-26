@@ -195,6 +195,52 @@ One underlying cause, three phases, three symptoms.
 Reproduce with `python scripts/run_phase5.py --reps 30 --days 7 --out-csv results/phase5.csv`,
 then `python scripts/plot_phase5.py results/phase5.csv`.
 
+### Regime sweep: the negative results are not an artefact of one configuration
+
+Three phases concluded that sophisticated methods do not pay here, and all three rested on
+one unverified claim — that the candidate stations are near-equivalent *at the configuration
+tested*. That was a caveat, not a result. Two sweeps turn it into one, measuring two
+quantities that are easy to confuse and mean opposite things:
+
+- **Headroom** — DMEXCLP minus parking idle units at random, dispatch held fixed: what the
+  repositioning choice is worth at all.
+- **Best vs second-best gain** — what a search method must actually resolve, since search
+  never chooses between the best option and a random one, only between close rivals.
+
+| regime | queued | headroom | best vs 2nd | rollout Δ | equity Δ |
+|---|---|---|---|---|---|
+| 4/h, 4 stations | 0.062 | +0.091 | 10.0% | −0.008 | −0.007 |
+| 5/h, 4 stations | 0.135 | +0.061 | 10.2% | +0.001 | −0.005 |
+| 6/h, 4 stations | 0.283 | +0.039 | 10.5% | −0.005 | −0.012 |
+| 4/h, 6 stations | 0.064 | +0.071 | 7.0% | −0.012 | −0.003 |
+| 4/h, 8 stations | 0.067 | +0.078 | **6.6%** | **−0.016*** | −0.007 |
+
+Four findings:
+
+1. **The negatives hold across every regime.** Rollout never beats DMEXCLP across a 1.5x
+   range of load and a 2x range of station count; the equity weight is never significant.
+2. **Repositioning matters a great deal — and choosing between the top two does not.**
+   Headroom of +0.091 says the choice is worth nine coverage points, while the top two
+   candidates differ by 10% of a single gain. Both are true at once, and only the second
+   decides whether search can pay. Reporting headroom alone would tell the opposite story.
+3. **Headroom falls as load rises** (+0.091 → +0.039). Repositioning matters *less* when the
+   system is busy, because units are rarely idle and where they would have waited stops
+   mattering. The intuition that a stressed system needs smarter repositioning is backwards.
+4. **A finer action space makes search worse.** At 8 stations rollout is significantly
+   *harmful* (−0.016, p = 0.008), and the top-two gap shrinks to 6.6%. More options mean more
+   near-equivalent options, so a noisy estimate has more chances to pick a worse one —
+   exactly what Phase 3's variance argument predicts, now observed rather than inferred.
+   This corrects an earlier prediction in the roadmap, which had it the other way round.
+
+**Power caveat:** 8 replications x 3 days, against the 30 x 7 behind the phase results. The
+null results here have confidence intervals around ±0.02, so they exclude large effects, not
+small ones. The single significant result is a harm.
+
+![Regime sweep](results/figures/regimes.png)
+
+Reproduce with `python scripts/run_regimes.py --reps 8 --days 3 --out-csv results/regimes.csv`,
+then `python scripts/plot_regimes.py results/regimes.csv`.
+
 ## Layout
 
 ```
